@@ -1,8 +1,55 @@
 module idstore;
 
 class IDStore {
-	import sqlite : SQLite;
+	import d2sqlite3 : Database, Query;
 	import std.range : SortedRange;
+	final private class idlist (Range) {
+		invariant() {
+			if (!this.outer.isDisabled)
+				assert((cast(Database)this.outer.database).handle !is null, "Database handle disappeared!");
+		}
+		Range range;
+		string dbname;
+		private size_t index = 0;
+		private string[] resultbuffer;
+		private auto depthLimit = 500;
+		this(Range r, string db, ref Database sqlite) nothrow {
+			import std.array : empty;
+			range = r; dbname = db;
+			while (!range.empty && (resultbuffer.length == 0))
+				popFront();
+		}
+		void popFront() nothrow {
+			import std.range : take, popFrontN;
+			import std.array : popFront;
+			import std.algorithm : map;
+			import std.string : join, format;
+			import std.stdio : writeln;
+			index++;
+			if (index >= resultbuffer.length) {
+				resultbuffer = [];
+				auto chunk = take(range, depthLimit).map!((x) => sanitizeData(x));
+				range.popFrontN(chunk.length);
+				index = 0;
+				try {
+					string query = format("SELECT * FROM %s WHERE IDS=%-(%s OR %)%s;", dbname, chunk, dbname == "md5" ? " COLLATE NOCASE" : "");
+					auto q = this.outer.query(query);
+					foreach (row; q.rows)
+						resultbuffer ~= row.IDS.get!string;
+					q.reset();
+				} catch (Exception) {}
+			}
+		}
+		@property {
+			ref string front() nothrow {
+				return resultbuffer[index];
+			}
+			bool empty() nothrow {
+				import std.array : empty;
+				return range.empty && (index >= resultbuffer.length);
+			}
+		}
+	}
 	final class DB {
 		string db;
 		this(string name) nothrow {
@@ -33,13 +80,20 @@ class IDStore {
 			return this.outer.contains(db, range);
 		}
 	}
-	private SQLite database;
+	private Database database;
+	invariant() {
+		if (!isDisabled)
+			assert((cast(Database)database).handle !is null, "Database handle disappeared!");
+	}
 	public bool isDisabled = false;
+	private Query query(string inQuery) {
+		return database.query(inQuery);
+	}
 	final @property ref DB opIndex(string s) nothrow {
 		return db(s);
 	}
 	final void createDB(string dbname) {
-		database.exec("CREATE TABLE IF NOT EXISTS " ~ dbname ~ " (IDS TEXT PRIMARY KEY)");
+		database.execute("CREATE TABLE IF NOT EXISTS " ~ dbname ~ " (IDS TEXT PRIMARY KEY)");
 	}
 	final private ref DB db(string dbname) nothrow {
 		static DB[string] instances;
@@ -48,107 +102,70 @@ class IDStore {
 		return instances[dbname];
 	}
 	final private bool inDB(T)(string dbname, T range) nothrow {
-		return !contains(dbname, range).empty;
+		import std.exception;
+		return assumeWontThrow(!contains(dbname, range).empty);
 	}
-	final private auto contains(T)(in string dbname, T range)  {
-		return idlist!T(range, dbname, database);
+	final private auto contains(T)(in string dbname, T range) nothrow {
+		import std.exception;
+		return assumeWontThrow(new idlist!T(range, dbname, database));
 	}
 	final private void insertID(T)(in string dbname, T range) nothrow {
 		if (isDisabled)
 			return;
 		scope(failure) return;
-		database.exec("BEGIN TRANSACTION");
+		database.execute("BEGIN TRANSACTION");
 		scope(failure) { 
-			database.exec("ROLLBACK");
+			database.execute("ROLLBACK");
 		}
 		createDB(dbname);
 
-		foreach (ID; range)
-			database.exec("INSERT INTO " ~ dbname ~ " VALUES (" ~ sanitizeData(ID) ~ ")");
-		database.exec("COMMIT");
+		auto query = database.query("INSERT INTO '"~dbname~"' (IDS) VALUES (:ID)");
+		foreach (ID; range) {
+			query.bind(":ID", ID);
+			query.execute();
+			query.reset();
+		}
+		database.execute("COMMIT");
 	}
 	final auto listIDs(in string dbname) {
 		string[] output;
-		string query = "SELECT * from " ~ dbname;
-		foreach (cells,cols; database.query(query))
-			output ~= cells[0].idup;
+		auto query = database.query("SELECT * from " ~ dbname);
+		foreach (row; query.rows)
+			output ~= row.IDS.get!string;
+		query.reset();
 		return output;
 	}
 	final auto listDbs() {
 		string[] output;
-		string query = "SELECT name FROM sqlite_master WHERE type = \"table\"";
-		foreach (cells,cols; database.query(query))
-			output ~= cells[0].idup;
+		auto query = database.query(`SELECT name FROM sqlite_master WHERE type = "table"`);
+		foreach (row; query.rows)
+			output ~= row.name.get!string;
+		query.reset();
 		return output;
 	}
 	final private void deleteID(T)(string dbname, T IDs) {
 		if (isDisabled)
 			return;
-		database.exec("BEGIN TRANSACTION");
-		scope (failure)	database.exec("ROLLBACK");
+		database.execute("BEGIN TRANSACTION");
+		scope (failure)	database.execute("ROLLBACK");
+		auto query = database.query("DELETE FROM " ~ dbname ~ " WHERE IDS=:ID");
 		foreach (ID; IDs) {
 			if (inDB(dbname, [ID])) {
-				auto query = "DELETE FROM " ~ dbname ~ " WHERE IDS=" ~ sanitizeData(ID);
-				database.exec(query);
+				query.bind(":ID", ID);
+				query.execute();
+				query.reset();
 			}
 			else
 				throw new NoDatabaseMatchException(ID, dbname);
 		}
-		database.exec("COMMIT");
+		database.execute("COMMIT");
 	}
 	this(string filename) {
-		database = new SQLite(filename);
+		database = Database(filename);
 	}
 	void close() {
-		delete(database);
-	}
-}
-private struct idlist (Range) {
-	import sqlite;
-	Range range;
-	string dbname;
-	SQLite database;
-	private size_t index = 0;
-	private string[] resultbuffer;
-	private auto depthLimit = 500;
-	this(Range r, string db, SQLite sqlite) nothrow {
-		import std.array : empty;
-		range = r; dbname = db; database = sqlite;
-		while (!range.empty && (resultbuffer.length == 0))
-			popFront();
-	}
-	void popFront() nothrow {
-		import std.range : take;
-		import std.array : popFront;
-		import std.algorithm : map;
-		import std.string : join;
-		index++;
-		if (index >= resultbuffer.length) {
-			resultbuffer = [];
-			auto chunk = take(range, depthLimit);
-			try {
-				foreach (meh; chunk)
-					range.popFront();
-			} catch (Exception) {}
-			index = 0;
-			try {
-				string query = "SELECT * from " ~ dbname ~ " WHERE " ~ map!((n) { return "IDS=" ~ sanitizeData(n); } )(chunk).join(" OR ");
-				if (dbname == "md5")
-					query ~= " COLLATE NOCASE";
-				query ~= ";";
-				foreach (cells, cols; database.query(query))
-					resultbuffer ~= cells[0].idup;
-			} catch (Exception) {}
-		}
-	}
-	@property {
-		ref string front() nothrow {
-			return resultbuffer[index];
-		}
-		bool empty() nothrow {
-			import std.array : empty;
-			return range.empty && (index >= resultbuffer.length);
-		}
+		isDisabled = true;
+		destroy(database);
 	}
 }
 class IDAlreadyExistsException : Exception {
@@ -189,27 +206,29 @@ unittest {
 	import std.stdio : writeln, writefln;
 	import std.conv : text;
 	import std.exception : assertNotThrown, assertThrown;
-	scope(exit) if (exists("test.db")) remove("test.db");
-	auto words1 = map!text(iota(0,100));
-	auto words2 = map!((a) => "word"~text(a))(iota(0,100));
-	auto words3 = map!((a) => "Nonexistant"~text(a))(iota(0,100));
-	auto words4 = map!((a) => "extra"~text(a))(iota(0,100));
+	enum testFilename = ":memory:"; //in-memory
+	//enum testFilename = "test.db"; //file
+	scope(exit) if (exists(testFilename)) remove(testFilename);
+	enum words1 = map!text(iota(0,100));
+	enum words2 = map!((a) => "word"~text(a))(iota(0,100));
+	enum words3 = map!((a) => "Nonexistant"~text(a))(iota(0,100));
+	enum words4 = map!((a) => "extra"~text(a))(iota(0,100));
 	writeln("Beginning database test");
 	StopWatch timer;
 	long[] times;
 	timer.start();
-	auto db = new IDStore("test.db");
-	foreach (word; words1) {
+	auto db = new IDStore(testFilename);
+	foreach (word; words1)
 		db["test"] ~= word;
-	}
 	timer.stop();
 	times ~= timer.peek().msecs;
 	writefln("Database Insertion 1 completed in %sms", times[$-1]);
+	assert(db.listDbs() == ["test"], "Database list missing just-added database");
+	assert(db.listIDs("test") == array(words1), "Missing ids in list");
 	timer.reset();
 	timer.start();
-	foreach (word; words2) {
+	foreach (word; words2)
 		db["test"] ~= word;
-	}
 	timer.stop();
 	times ~= timer.peek().msecs;
 	writefln("Database Insertion 2 completed in %sms", times[$-1]);
