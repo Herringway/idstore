@@ -5,10 +5,10 @@
 	"authors": ["Cameron \"Herringway\" Ross"],
 	"targetType": "library",
 	"license": "MIT",
-	"version":"0.1.0",
+	"version":"0.1.1",
 	"dependencies": {
 		"sqlite": ">=3.8.4",
-		"d2sqlite3": ">=0.3.0"
+		"d2sqlite3": "~>0.3.0"
 	},"buildTypes": {
 		"unittest": {
 			"buildOptions": ["unittests", "debugMode", "debugInfo", "profile"]

@@ -9,34 +9,42 @@ class IDStore {
 				assert((cast(Database)this.outer.database).handle !is null, "Database handle disappeared!");
 		}
 		Range range;
-		string dbname;
 		private size_t index = 0;
 		private string[] resultbuffer;
 		private auto depthLimit = 500;
+		private Query querybase;
+		bool resultbufferinitialized = false;
 		this(Range r, string db, ref Database sqlite) nothrow {
-			import std.array : empty;
-			range = r; dbname = db;
-			while (!range.empty && (resultbuffer.length == 0))
+			import std.array : empty, replicate;
+			import std.string : format;
+			range = r;
+			auto count = depthLimit;
+			static if (__traits(compiles, r.length)) {
+				import std.algorithm : min;
+				count = min(r.length, count);
+			}
+			try {
+				querybase = this.outer.query(format("SELECT * FROM %s WHERE IDS IN (%-(%s,%))%s;", db, replicate([":P"], count), db == "md5" ? " COLLATE NOCASE" : ""));
+			} catch (Exception) {}
+			while (!range.empty && (!resultbufferinitialized))
 				popFront();
 		}
 		void popFront() nothrow {
-			import std.range : take, popFrontN;
-			import std.array : popFront;
-			import std.algorithm : map;
-			import std.string : join, format;
-			import std.stdio : writeln;
+			import std.range : take, popFront;
 			index++;
 			if (index >= resultbuffer.length) {
+				if (!resultbufferinitialized)
+					resultbufferinitialized = true;
 				resultbuffer = [];
-				auto chunk = take(range, depthLimit).map!((x) => sanitizeData(x));
-				range.popFrontN(chunk.length);
 				index = 0;
 				try {
-					string query = format("SELECT * FROM %s WHERE IDS=%-(%s OR %)%s;", dbname, chunk, dbname == "md5" ? " COLLATE NOCASE" : "");
-					auto q = this.outer.query(query);
-					foreach (row; q.rows)
-						resultbuffer ~= row.IDS.get!string;
-					q.reset();
+					foreach (id; take(range, depthLimit)) {
+						querybase.bind(":P", id);
+						range.popFront();
+					}
+					foreach (row; querybase)
+						resultbuffer ~= row["IDS"].get!string;
+					querybase.reset();
 				} catch (Exception) {}
 			}
 		}
@@ -46,7 +54,7 @@ class IDStore {
 			}
 			bool empty() nothrow {
 				import std.array : empty;
-				return range.empty && (index >= resultbuffer.length);
+				return index >= resultbuffer.length;
 			}
 		}
 	}
@@ -114,9 +122,8 @@ class IDStore {
 			return;
 		scope(failure) return;
 		database.execute("BEGIN TRANSACTION");
-		scope(failure) { 
-			database.execute("ROLLBACK");
-		}
+		scope(failure) database.execute("ROLLBACK");
+		scope(success) database.execute("COMMIT");
 		createDB(dbname);
 
 		auto query = database.query("INSERT INTO '"~dbname~"' (IDS) VALUES (:ID)");
@@ -125,22 +132,24 @@ class IDStore {
 			query.execute();
 			query.reset();
 		}
-		database.execute("COMMIT");
+		destroy(query);
 	}
 	final auto listIDs(in string dbname) {
 		string[] output;
 		auto query = database.query("SELECT * from " ~ dbname);
-		foreach (row; query.rows)
-			output ~= row.IDS.get!string;
+		foreach (row; query)
+			output ~= row["IDS"].get!string;
 		query.reset();
+		destroy(query);
 		return output;
 	}
 	final auto listDbs() {
 		string[] output;
 		auto query = database.query(`SELECT name FROM sqlite_master WHERE type = "table"`);
-		foreach (row; query.rows)
-			output ~= row.name.get!string;
+		foreach (row; query)
+			output ~= row["name"].get!string;
 		query.reset();
+		destroy(query);
 		return output;
 	}
 	final private void deleteID(T)(string dbname, T IDs) {
@@ -148,22 +157,24 @@ class IDStore {
 			return;
 		database.execute("BEGIN TRANSACTION");
 		scope (failure)	database.execute("ROLLBACK");
+		scope (success) database.execute("COMMIT");
 		auto query = database.query("DELETE FROM " ~ dbname ~ " WHERE IDS=:ID");
 		foreach (ID; IDs) {
-			if (inDB(dbname, [ID])) {
-				query.bind(":ID", ID);
-				query.execute();
-				query.reset();
-			}
-			else
-				throw new NoDatabaseMatchException(ID, dbname);
+			query.bind(":ID", ID);
+			query.execute();
+			query.reset();
 		}
-		database.execute("COMMIT");
+		destroy(query);
+	}
+	final public void optimize() {
+		isDisabled = true;
+		scope(exit) isDisabled = false;
+		database.execute("VACUUM");
 	}
 	this(string filename) {
 		database = Database(filename);
 	}
-	void close() {
+	final void close() {
 		isDisabled = true;
 		destroy(database);
 	}
@@ -188,15 +199,6 @@ class NoDatabaseMatchException : Exception {
 		super(format("Could not find %s in %s database!", id, pid));
 	}
 }
-private @property string sanitizeData(T)(T input) pure {
-	import std.array : replace;
-	import std.string : isNumeric;
-	import std.conv : text;
-	auto str = text(input);
-	if (str.isNumeric())
-		return str;
-	return "'" ~ replace(str, "'", "\'") ~ "'";
-}
 unittest {
 	import std.file;
 	import std.datetime;
@@ -216,66 +218,84 @@ unittest {
 	writeln("Beginning database test");
 	StopWatch timer;
 	long[] times;
-	timer.start();
 	auto db = new IDStore(testFilename);
-	foreach (word; words1)
-		db["test"] ~= word;
+	timer.start();
+
+	assert(words1 !in db["test"], "Found item in empty database");
+	
 	timer.stop();
 	times ~= timer.peek().msecs;
-	writefln("Database Insertion 1 completed in %sms", times[$-1]);
+	writefln("Empty database search completed in %sms", times[$-1]);
+	timer.reset();
+	timer.start();
+
+	foreach (word; words1)
+		db["test"] ~= word;
+	
+	timer.stop();
+	times ~= timer.peek().msecs;
+	writefln("Database Insertion 1 (one-by-one) completed in %sms", times[$-1]);
 	assert(db.listDbs() == ["test"], "Database list missing just-added database");
 	assert(db.listIDs("test") == array(words1), "Missing ids in list");
 	timer.reset();
 	timer.start();
+	
 	foreach (word; words2)
 		db["test"] ~= word;
+	
 	timer.stop();
 	times ~= timer.peek().msecs;
-	writefln("Database Insertion 2 completed in %sms", times[$-1]);
+	writefln("Database Insertion 2 (one-by-one 2) completed in %sms", times[$-1]);
 	timer.reset();
 	timer.start();
+	
 	db["test"] ~= words4;
+	
 	timer.stop();
 	times ~= timer.peek().msecs;
-	writefln("Database Insertion 3 completed in %sms", times[$-1]);
+	writefln("Database Insertion 3 (range) completed in %sms", times[$-1]);
 	timer.reset();
 	timer.start();
+	
 	foreach (word1, word2, word3; zip(words1, words2, words3)) {
 		assert(word1  in db["test"], "Missing ID: " ~ word1);
 		assert(word2  in db["test"], "Missing ID: " ~ word2);
 		assert(word3 !in db["test"], "Found ID: " ~ word3);
 	}
+
 	timer.stop();
 	times ~= timer.peek().msecs;
-	writefln("Database ID check completed in %sms", times[$-1]);
+	writefln("Database ID check (one-by-one) completed in %sms", times[$-1]);
 	timer.reset();
 	timer.start();
+	
 	assert(words1 in db["test"], "Missing ID from set1");
 	assert(words2 in db["test"], "Missing ID from set2");
 	assert(words4 in db["test"], "Missing ID from set4");
+	
 	timer.stop();
 	times ~= timer.peek().msecs;
 	writefln("Database ID check (ranges) completed in %sms", times[$-1]);
 	timer.reset();
 	timer.start();
-	//foreach (word1, word2, word3; zip(words1, words2, words3)) {
-		assertNotThrown(db["test"].remove(words1), "Deletion 1 failed");
-		assertNotThrown(db["test"].remove(words2), "Deletion 2 failed");
-		assertThrown   (db["test"].remove(words3), "Apparent success deleting nonexistant IDs");
-	//}
+	
+	assertNotThrown(db["test"].remove(words1), "Deletion 1 failed");
+	assertNotThrown(db["test"].remove(words2), "Deletion 2 failed");
+	assertNotThrown(db["test"].remove(words3), "Deletion of nonexistant ids failed");
+	
 	timer.stop();
 	times ~= timer.peek().msecs;
 	writefln("Database ID deletion completed in %sms", times[$-1]);
 	timer.reset();
 	timer.start();
-	foreach (word1, word2; zip(words1, words2)) {
-		assert(word1 !in db["test"], "Found deleted ID: " ~ word1);
-		assert(word2 !in db["test"], "Found deleted ID: word" ~ word2);
-	}
+
+	assert(words1 !in db["test"], "Deletion failed in words1");
+	assert(words2 !in db["test"], "Deletion failed in words2");
+	
 	timer.stop();
 	times ~= timer.peek().msecs;
 	writefln("Database post-deletion ID check completed in %sms", times[$-1]);
 	writefln("Database test completed in %sms", reduce!((a,b) => a+b)(cast(ulong)0, times));
-	db.close();
+	destroy(db);
 
 }
