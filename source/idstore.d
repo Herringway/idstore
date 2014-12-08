@@ -1,51 +1,60 @@
 module idstore;
 
+import std.stdio;
 class IDStore {
 	import d2sqlite3 : Database, Query;
 	import std.range : SortedRange;
-	final private class idlist (Range) {
-		invariant() {
-			if (!this.outer.isDisabled)
-				assert((cast(Database)this.outer.database).handle !is null, "Database handle disappeared!");
+	final private struct idlist (Range) {
+		struct sqlite_buffer {
+			import std.string : format;
+			import std.range;
+			int count;
+			private Query query;
+			Range ids;
+			this(int inCount, string db, ref Range inIDs, Database database) {
+				count = inCount;
+				ids = inIDs;
+				query = database.query(format("SELECT * FROM %s WHERE IDS IN (%-(%s,%)) COLLATE NOCASE;", db, iota(0, count).map!((a) => format(":P%04d", a))));
+			}
+			string[] fetchNext() {
+				string[] output;
+				query.clearBindings();
+				foreach (i; 0..count) {
+					if (ids.empty)
+						break;
+					query.bind(format(":P%04d", i), ids.front);
+					ids.popFront();
+				}
+				if (query.empty)
+					return output;
+				foreach (row; query)
+					output ~= row["IDS"].get!string;
+				query.reset();
+				return output;
+			}
+			~this() {
+				destroy(query);
+			}
 		}
-		Range range;
 		private size_t index = 0;
 		private string[] resultbuffer;
 		private auto depthLimit = 500;
-		private Query querybase;
-		bool resultbufferinitialized = false;
-		this(Range r, string db, ref Database sqlite) nothrow {
-			import std.array : empty, replicate;
-			import std.string : format;
-			range = r;
+		sqlite_buffer buffer;
+		this(Range r, string db, ref Database sqlite) {
 			auto count = depthLimit;
 			static if (__traits(compiles, r.length)) {
 				import std.algorithm : min;
 				count = min(r.length, count);
 			}
-			try {
-				querybase = this.outer.query(format("SELECT * FROM %s WHERE IDS IN (%-(%s,%))%s;", db, replicate([":P"], count), db == "md5" ? " COLLATE NOCASE" : ""));
-			} catch (Exception) {}
-			while (!range.empty && (!resultbufferinitialized))
-				popFront();
+			buffer = sqlite_buffer(count, db, r, sqlite);
+			resultbuffer = buffer.fetchNext();
 		}
-		void popFront() nothrow {
-			import std.range : take, popFront;
+		void popFront() {
 			index++;
 			if (index >= resultbuffer.length) {
-				if (!resultbufferinitialized)
-					resultbufferinitialized = true;
-				resultbuffer = [];
-				index = 0;
-				try {
-					foreach (id; take(range, depthLimit)) {
-						querybase.bind(":P", id);
-						range.popFront();
-					}
-					foreach (row; querybase)
-						resultbuffer ~= row["IDS"].get!string;
-					querybase.reset();
-				} catch (Exception) {}
+				resultbuffer = buffer.fetchNext();
+				if (resultbuffer.length > 0)
+					index = 0;
 			}
 		}
 		@property {
@@ -53,14 +62,14 @@ class IDStore {
 				return resultbuffer[index];
 			}
 			bool empty() nothrow {
-				import std.array : empty;
 				return index >= resultbuffer.length;
 			}
 		}
 	}
 	final class DB {
 		string db;
-		this(string name) nothrow {
+		this(string name) {
+			this.outer.createDB(name);
 			db = name;
 		}
 		final void opOpAssign(string op)(string[] ids...) nothrow if (op == "~") {
@@ -75,16 +84,16 @@ class IDStore {
 		final void remove(T)(T range) {
 			this.outer.deleteID(db, range);
 		}
-		final bool opIn_r (string[] ids...) nothrow {
+		final bool opIn_r (string[] ids...) {
 			return this.outer.inDB(db, ids);
 		}
-		final bool opIn_r(T)(T range) nothrow {
+		final bool opIn_r(T)(T range) {
 			return this.outer.inDB(db, range);
 		}
-		final auto contains(string[] ids...) nothrow {
+		final auto contains(string[] ids...) {
 			return this.outer.contains(db, ids);
 		}
-		final auto contains(T)(T range) nothrow {
+		final auto contains(T)(T range) {
 			return this.outer.contains(db, range);
 		}
 	}
@@ -97,25 +106,23 @@ class IDStore {
 	private Query query(string inQuery) {
 		return database.query(inQuery);
 	}
-	final @property ref DB opIndex(string s) nothrow {
+	final @property ref DB opIndex(string s) {
 		return db(s);
 	}
 	final void createDB(string dbname) {
 		database.execute("CREATE TABLE IF NOT EXISTS " ~ dbname ~ " (IDS TEXT PRIMARY KEY)");
 	}
-	final private ref DB db(string dbname) nothrow {
+	final private ref DB db(string dbname) {
 		static DB[string] instances;
 		if (dbname !in instances)
 			instances[dbname] = this.new DB(dbname);
 		return instances[dbname];
 	}
-	final private bool inDB(T)(string dbname, T range) nothrow {
-		import std.exception;
-		return assumeWontThrow(!contains(dbname, range).empty);
+	final private bool inDB(T)(string dbname, T range) {
+		return !contains(dbname, range).empty;
 	}
-	final private auto contains(T)(in string dbname, T range) nothrow {
-		import std.exception;
-		return assumeWontThrow(new idlist!T(range, dbname, database));
+	final private auto contains(T)(in string dbname, T range) {
+		return idlist!T(range, dbname, database);
 	}
 	final private void insertID(T)(in string dbname, T range) nothrow {
 		if (isDisabled)
@@ -132,7 +139,6 @@ class IDStore {
 			query.execute();
 			query.reset();
 		}
-		destroy(query);
 	}
 	final auto listIDs(in string dbname) {
 		string[] output;
@@ -140,7 +146,6 @@ class IDStore {
 		foreach (row; query)
 			output ~= row["IDS"].get!string;
 		query.reset();
-		destroy(query);
 		return output;
 	}
 	final auto listDbs() {
@@ -149,8 +154,10 @@ class IDStore {
 		foreach (row; query)
 			output ~= row["name"].get!string;
 		query.reset();
-		destroy(query);
 		return output;
+	}
+	final void deleteDB(string name) {
+		database.execute("DROP TABLE "~name);
 	}
 	final private void deleteID(T)(string dbname, T IDs) {
 		if (isDisabled)
@@ -164,11 +171,11 @@ class IDStore {
 			query.execute();
 			query.reset();
 		}
-		destroy(query);
 	}
 	final public void optimize() {
+		auto disablestate = isDisabled;
 		isDisabled = true;
-		scope(exit) isDisabled = false;
+		scope(exit) isDisabled = disablestate;
 		database.execute("VACUUM");
 	}
 	this(string filename) {
@@ -176,7 +183,7 @@ class IDStore {
 	}
 	final void close() {
 		isDisabled = true;
-		destroy(database);
+		database.close();
 	}
 }
 class IDAlreadyExistsException : Exception {
@@ -204,21 +211,24 @@ unittest {
 	import std.datetime;
 	import std.range : iota, zip;
 	import std.array : array;
-	import std.algorithm : map, reduce;
+	import std.algorithm : map, reduce, sort, setDifference;
 	import std.stdio : writeln, writefln;
 	import std.conv : text;
 	import std.exception : assertNotThrown, assertThrown;
 	enum testFilename = ":memory:"; //in-memory
 	//enum testFilename = "test.db"; //file
 	scope(exit) if (exists(testFilename)) remove(testFilename);
-	enum words1 = map!text(iota(0,100));
-	enum words2 = map!((a) => "word"~text(a))(iota(0,100));
-	enum words3 = map!((a) => "Nonexistant"~text(a))(iota(0,100));
-	enum words4 = map!((a) => "extra"~text(a))(iota(0,100));
+	enum count = 1000;
+	enum words1 = iota(0,count).map!text;
+	enum words2 = iota(0,count).map!((a) => "word"~text(a));
+	enum words3 = iota(0,count).map!((a) => "Nonexistant"~text(a));
+	enum words4 = iota(0,count).map!((a) => "extra"~text(a));
 	writeln("Beginning database test");
 	StopWatch timer;
 	long[] times;
 	auto db = new IDStore(testFilename);
+	foreach (database; db.listDbs)
+		db.deleteDB(database);
 	timer.start();
 
 	assert(words1 !in db["test"], "Found item in empty database");
@@ -267,6 +277,7 @@ unittest {
 	times ~= timer.peek().msecs;
 	writefln("Database ID check (one-by-one) completed in %sms", times[$-1]);
 	timer.reset();
+	db.optimize();
 	timer.start();
 	
 	assert(words1 in db["test"], "Missing ID from set1");
@@ -276,6 +287,16 @@ unittest {
 	timer.stop();
 	times ~= timer.peek().msecs;
 	writefln("Database ID check (ranges) completed in %sms", times[$-1]);
+	timer.reset();
+	timer.start();
+	
+	assert(array(sort(array(db["test"].contains(words1)))) == array(sort(array(words1))), "Missing ID from set1");
+	assert(array(sort(array(db["test"].contains(words2)))) == array(sort(array(words2))), "Missing ID from set2");
+	assert(array(sort(array(db["test"].contains(words4)))) == array(sort(array(words4))), "Missing ID from set4");
+	
+	timer.stop();
+	times ~= timer.peek().msecs;
+	writefln("Database ID check (ranges, contains) completed in %sms", times[$-1]);
 	timer.reset();
 	timer.start();
 	
@@ -296,6 +317,5 @@ unittest {
 	times ~= timer.peek().msecs;
 	writefln("Database post-deletion ID check completed in %sms", times[$-1]);
 	writefln("Database test completed in %sms", reduce!((a,b) => a+b)(cast(ulong)0, times));
-	destroy(db);
-
+	db.close();
 }
