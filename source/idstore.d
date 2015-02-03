@@ -2,19 +2,19 @@ module idstore;
 
 import std.stdio;
 class IDStore {
-	import d2sqlite3 : Database, Query;
+	import d2sqlite3 : Database, Statement;
 	import std.range : SortedRange;
 	final private struct idlist (Range) {
 		struct sqlite_buffer {
 			import std.string : format;
 			import std.range;
 			int count;
-			private Query query;
+			private Statement query;
 			Range ids;
 			this(int inCount, string db, ref Range inIDs, Database database) {
 				count = inCount;
 				ids = inIDs;
-				query = database.query(format("SELECT * FROM %s WHERE IDS IN (%-(%s,%)) COLLATE NOCASE;", db, iota(0, count).map!((a) => format(":P%04d", a))));
+				query = database.prepare(format("SELECT * FROM %s WHERE IDS IN (%-(%s,%)) COLLATE NOCASE;", db, iota(0, count).map!((a) => format(":P%04d", a))));
 			}
 			string[] fetchNext() {
 				string[] output;
@@ -25,9 +25,10 @@ class IDStore {
 					query.bind(format(":P%04d", i), ids.front);
 					ids.popFront();
 				}
-				if (query.empty)
+				auto finishedQuery = query.execute();
+				if (finishedQuery.empty)
 					return output;
-				foreach (row; query)
+				foreach (row; finishedQuery)
 					output ~= row["IDS"].get!string;
 				query.reset();
 				return output;
@@ -103,9 +104,6 @@ class IDStore {
 			assert((cast(Database)database).handle !is null, "Database handle disappeared!");
 	}
 	public bool isDisabled = false;
-	private Query query(string inQuery) {
-		return database.query(inQuery);
-	}
 	final @property ref DB opIndex(string s) {
 		return db(s);
 	}
@@ -133,7 +131,7 @@ class IDStore {
 		scope(success) database.execute("COMMIT");
 		createDB(dbname);
 
-		auto query = database.query("INSERT INTO '"~dbname~"' (IDS) VALUES (:ID)");
+		auto query = database.prepare("INSERT INTO '"~dbname~"' (IDS) VALUES (:ID)");
 		foreach (ID; range) {
 			query.bind(":ID", ID);
 			query.execute();
@@ -142,16 +140,16 @@ class IDStore {
 	}
 	final auto listIDs(in string dbname) {
 		string[] output;
-		auto query = database.query("SELECT * from " ~ dbname);
-		foreach (row; query)
+		auto query = database.prepare("SELECT * from " ~ dbname);
+		foreach (row; query.execute())
 			output ~= row["IDS"].get!string;
 		query.reset();
 		return output;
 	}
 	final auto listDbs() {
 		string[] output;
-		auto query = database.query(`SELECT name FROM sqlite_master WHERE type = "table"`);
-		foreach (row; query)
+		auto query = database.prepare(`SELECT name FROM sqlite_master WHERE type = "table"`);
+		foreach (row; query.execute())
 			output ~= row["name"].get!string;
 		query.reset();
 		return output;
@@ -165,7 +163,7 @@ class IDStore {
 		database.execute("BEGIN TRANSACTION");
 		scope (failure)	database.execute("ROLLBACK");
 		scope (success) database.execute("COMMIT");
-		auto query = database.query("DELETE FROM " ~ dbname ~ " WHERE IDS=:ID");
+		auto query = database.prepare("DELETE FROM " ~ dbname ~ " WHERE IDS=:ID");
 		foreach (ID; IDs) {
 			query.bind(":ID", ID);
 			query.execute();
