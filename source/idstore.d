@@ -8,6 +8,7 @@ class IDStore {
 		struct sqlite_buffer {
 			import std.string : format;
 			import std.range;
+			import std.algorithm : map;
 			int count;
 			private Statement query;
 			Range ids;
@@ -29,7 +30,7 @@ class IDStore {
 				if (finishedQuery.empty)
 					return output;
 				foreach (row; finishedQuery)
-					output ~= row["IDS"].get!string;
+					output ~= row["IDS"].as!string;
 				query.reset();
 				return output;
 			}
@@ -142,7 +143,7 @@ class IDStore {
 		string[] output;
 		auto query = database.prepare("SELECT * from " ~ dbname);
 		foreach (row; query.execute())
-			output ~= row["IDS"].get!string;
+			output ~= row["IDS"].as!string;
 		query.reset();
 		return output;
 	}
@@ -150,7 +151,7 @@ class IDStore {
 		string[] output;
 		auto query = database.prepare(`SELECT name FROM sqlite_master WHERE type = "table"`);
 		foreach (row; query.execute())
-			output ~= row["name"].get!string;
+			output ~= row["name"].as!string;
 		query.reset();
 		return output;
 	}
@@ -180,8 +181,10 @@ class IDStore {
 		database = Database(filename);
 	}
 	final void close() {
+		import d2sqlite3 : shutdown;
 		isDisabled = true;
 		database.close();
+		shutdown();
 	}
 }
 class IDAlreadyExistsException : Exception {
@@ -213,8 +216,10 @@ unittest {
 	import std.stdio : writeln, writefln;
 	import std.conv : text;
 	import std.exception : assertNotThrown, assertThrown;
+	import d2sqlite3 : versionString;
 	enum testFilename = ":memory:"; //in-memory
 	//enum testFilename = "test.db"; //file
+	writefln("Powered by sqlite %s", versionString);
 	scope(exit) if (exists(testFilename)) remove(testFilename);
 	enum count = 1000;
 	enum words1 = iota(0,count).map!text;
@@ -316,4 +321,5 @@ unittest {
 	writefln("Database post-deletion ID check completed in %sms", times[$-1]);
 	writefln("Database test completed in %sms", reduce!((a,b) => a+b)(cast(ulong)0, times));
 	db.close();
+	writeln("Database closed");
 }
