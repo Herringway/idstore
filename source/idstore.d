@@ -63,6 +63,8 @@ class IDStore {
 				resultbuffer = buffer.fetchNext();
 				if (resultbuffer.length > 0)
 					index = 0;
+				else
+					destroy(buffer);
 			}
 		}
 		@property {
@@ -141,6 +143,8 @@ class IDStore {
 		createDB(dbname);
 
 		auto query = database.prepare("INSERT INTO '"~dbname~"' (IDS) VALUES (:ID)");
+		scope(exit) destroy(query);
+
 		foreach (ID; range) {
 			query.bind(":ID", ID);
 			query.execute();
@@ -150,6 +154,7 @@ class IDStore {
 	final auto listIDs(in string dbname) {
 		string[] output;
 		auto query = database.prepare("SELECT * from " ~ dbname);
+		scope(exit) destroy(query);
 		foreach (row; query.execute())
 			output ~= row["IDS"].as!string;
 		query.reset();
@@ -158,6 +163,7 @@ class IDStore {
 	final auto listDbs() {
 		string[] output;
 		auto query = database.prepare(`SELECT name FROM sqlite_master WHERE type = "table"`);
+		scope(exit) destroy(query);
 		foreach (row; query.execute())
 			output ~= row["name"].as!string;
 		query.reset();
@@ -173,6 +179,7 @@ class IDStore {
 		scope (failure)	database.execute("ROLLBACK");
 		scope (success) database.execute("COMMIT");
 		auto query = database.prepare("DELETE FROM " ~ dbname ~ " WHERE IDS=:ID");
+		scope(exit) destroy(query);
 		foreach (ID; IDs) {
 			query.bind(":ID", ID);
 			query.execute();
