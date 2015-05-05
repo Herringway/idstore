@@ -42,7 +42,13 @@ class IDStore {
 		private string[] resultbuffer;
 		private auto depthLimit = 500;
 		sqlite_buffer buffer;
-		this(Range r, string db, ref Database sqlite) {
+		this(Range r, string db, ref Database sqlite, bool isDisabled = false) {
+			if (isDisabled) {
+				index = 0;
+				resultbuffer = [];
+				buffer = sqlite_buffer(0, db, r, sqlite);
+				return;
+			}
 			auto count = depthLimit;
 			static if (__traits(compiles, r.length)) {
 				import std.algorithm : min;
@@ -118,10 +124,12 @@ class IDStore {
 		return instances[dbname];
 	}
 	final private bool inDB(T)(string dbname, T range) {
+		if (isDisabled)
+			return false;
 		return !contains(dbname, range).empty;
 	}
 	final private auto contains(T)(in string dbname, T range) {
-		return idlist!T(range, dbname, database);
+		return idlist!T(range, dbname, database, isDisabled);
 	}
 	final private void insertID(T)(in string dbname, T range) nothrow {
 		if (isDisabled)
