@@ -34,18 +34,13 @@ class IDStore {
 				query.reset();
 				return output;
 			}
-			~this() {
-				destroy(query);
-			}
 		}
 		private size_t index = 0;
 		private string[] resultbuffer;
-		private auto depthLimit = 500;
+		private enum depthLimit = 500;
 		sqlite_buffer buffer;
 		this(Range r, string db, ref Database sqlite, bool isDisabled = false) {
 			if (isDisabled) {
-				index = 0;
-				resultbuffer = [];
 				buffer = sqlite_buffer(0, db, r, sqlite);
 				return;
 			}
@@ -63,8 +58,6 @@ class IDStore {
 				resultbuffer = buffer.fetchNext();
 				if (resultbuffer.length > 0)
 					index = 0;
-				else
-					destroy(buffer);
 			}
 		}
 		@property {
@@ -94,7 +87,7 @@ class IDStore {
 		final void remove(T)(T range) {
 			this.outer.deleteID(db, range);
 		}
-		final bool opIn_r (string[] ids...) {
+		final bool opIn_r(string[] ids...) {
 			return this.outer.inDB(db, ids);
 		}
 		final bool opIn_r(T)(T range) {
@@ -113,9 +106,7 @@ class IDStore {
 			assert((cast(Database)database).handle !is null, "Database handle disappeared!");
 	}
 	public bool isDisabled = false;
-	final @property ref DB opIndex(string s) {
-		return db(s);
-	}
+	alias opIndex = db;
 	final void createDB(string dbname) {
 		database.execute("CREATE TABLE IF NOT EXISTS " ~ dbname ~ " (IDS TEXT PRIMARY KEY)");
 	}
@@ -126,8 +117,6 @@ class IDStore {
 		return instances[dbname];
 	}
 	final private bool inDB(T)(string dbname, T range) {
-		if (isDisabled)
-			return false;
 		return !contains(dbname, range).empty;
 	}
 	final private auto contains(T)(in string dbname, T range) {
@@ -143,7 +132,6 @@ class IDStore {
 		createDB(dbname);
 
 		auto query = database.prepare("INSERT INTO '"~dbname~"' (IDS) VALUES (:ID)");
-		scope(exit) destroy(query);
 
 		foreach (ID; range) {
 			query.bind(":ID", ID);
@@ -154,7 +142,6 @@ class IDStore {
 	final auto listIDs(in string dbname) {
 		string[] output;
 		auto query = database.prepare("SELECT * from " ~ dbname);
-		scope(exit) destroy(query);
 		foreach (row; query.execute())
 			output ~= row["IDS"].as!string;
 		query.reset();
@@ -163,7 +150,6 @@ class IDStore {
 	final auto listDbs() {
 		string[] output;
 		auto query = database.prepare(`SELECT name FROM sqlite_master WHERE type = "table"`);
-		scope(exit) destroy(query);
 		foreach (row; query.execute())
 			output ~= row["name"].as!string;
 		query.reset();
@@ -179,7 +165,6 @@ class IDStore {
 		scope (failure)	database.execute("ROLLBACK");
 		scope (success) database.execute("COMMIT");
 		auto query = database.prepare("DELETE FROM " ~ dbname ~ " WHERE IDS=:ID");
-		scope(exit) destroy(query);
 		foreach (ID; IDs) {
 			query.bind(":ID", ID);
 			query.execute();
@@ -199,27 +184,6 @@ class IDStore {
 		import d2sqlite3 : shutdown;
 		isDisabled = true;
 		database.close();
-		shutdown();
-	}
-}
-class IDAlreadyExistsException : Exception {
-	import std.string : format;
-	string pid;
-	string id;
-	this(string inID, string inPID) {
-		pid = inPID;
-		id = inID;
-		super(format("%s already exists in %s database!", id, pid));
-	}
-}
-class NoDatabaseMatchException : Exception {
-	import std.string : format;
-	string pid;
-	string id;
-	this(string inID, string inPID) {
-		pid = inPID;
-		id = inID;
-		super(format("Could not find %s in %s database!", id, pid));
 	}
 }
 unittest {
