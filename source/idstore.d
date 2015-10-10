@@ -1,10 +1,59 @@
 module idstore;
 
 import std.stdio;
-class IDStore {
-	import d2sqlite3 : Database, Statement;
+struct IDStore {
+	import d2sqlite3 : Database, Statement, RowCache;
 	import std.range : SortedRange;
-	final private struct idlist (Range) {
+	private Database database;
+	public bool isDisabled = false;
+	alias opIndex = db;
+	final void createDB(string dbname) {
+		database.execute("CREATE TABLE IF NOT EXISTS " ~ dbname ~ " (IDS TEXT PRIMARY KEY)");
+	}
+	final public auto ref db(string dbname) {
+		struct DB {
+			string name;
+			IDStore db;
+			this(IDStore store, string name) {
+				this.name = name;
+				db = store;
+			}
+			final void opOpAssign(string op)(string[] ids...) nothrow if (op == "~") {
+				db.insertID(name, ids);
+			}
+			final void opOpAssign(string op, T)(T range) nothrow if (op == "~") {
+				db.insertID(name, range);
+			}
+			final void remove(string[] ids...) {
+				db.deleteID(name, ids);
+			}
+			final void remove(T)(T range) {
+				db.deleteID(name, range);
+			}
+			final bool opIn_r(string[] ids...) {
+				return db.inDB(name, ids);
+			}
+			final bool opIn_r(T)(T range) {
+				return db.inDB(name, range);
+			}
+			final auto contains(string[] ids...) {
+				return db.contains(name, ids);
+			}
+			final auto contains(T)(T range) {
+				return db.contains(name, range);
+			}
+		}
+		static DB[string] instances;
+		if (dbname !in instances) {
+			createDB(dbname);
+			instances[dbname] = DB(this, dbname);
+		}
+		return instances[dbname];
+	}
+	final private bool inDB(T)(string dbname, T range) {
+		return !contains(dbname, range).empty;
+	}
+	/+final private struct idlist (Range) {
 		struct sqlite_buffer {
 			import std.string : format;
 			import std.range;
@@ -68,59 +117,28 @@ class IDStore {
 				return index >= resultbuffer.length;
 			}
 		}
-	}
-	final class DB {
-		string db;
-		this(string name) {
-			this.outer.createDB(name);
-			db = name;
-		}
-		final void opOpAssign(string op)(string[] ids...) nothrow if (op == "~") {
-			this.outer.insertID(db, ids);
-		}
-		final void opOpAssign(string op, T)(T range) nothrow if (op == "~") {
-			this.outer.insertID(db, range);
-		}
-		final void remove(string[] ids...) {
-			this.outer.deleteID(db, ids);
-		}
-		final void remove(T)(T range) {
-			this.outer.deleteID(db, range);
-		}
-		final bool opIn_r(string[] ids...) {
-			return this.outer.inDB(db, ids);
-		}
-		final bool opIn_r(T)(T range) {
-			return this.outer.inDB(db, range);
-		}
-		final auto contains(string[] ids...) {
-			return this.outer.contains(db, ids);
-		}
-		final auto contains(T)(T range) {
-			return this.outer.contains(db, range);
-		}
-	}
-	private Database database;
-	invariant() {
-		if (!isDisabled)
-			assert((cast(Database)database).handle !is null, "Database handle disappeared!");
-	}
-	public bool isDisabled = false;
-	alias opIndex = db;
-	final void createDB(string dbname) {
-		database.execute("CREATE TABLE IF NOT EXISTS " ~ dbname ~ " (IDS TEXT PRIMARY KEY)");
-	}
-	final private ref DB db(string dbname) {
-		static DB[string] instances;
-		if (dbname !in instances)
-			instances[dbname] = this.new DB(dbname);
-		return instances[dbname];
-	}
-	final private bool inDB(T)(string dbname, T range) {
-		return !contains(dbname, range).empty;
-	}
+	}+/
 	final private auto contains(T)(in string dbname, T range) {
-		return idlist!T(range, dbname, database, isDisabled);
+		import std.concurrency : Generator, yield;
+		import std.range: ElementType, iota, chunks, enumerate;
+		import std.algorithm : map, min;
+		import std.string : format;
+		enum depthLimit = 500;
+		return new Generator!(ElementType!T)( {
+			auto count = depthLimit;
+			static if (__traits(compiles, r.length))
+				count = min(r.length, count);
+			auto query = database.prepare(format("SELECT * FROM %s WHERE IDS IN (%-(%s,%)) COLLATE NOCASE;", dbname, iota(0, count).map!((a) => format(":P%04d", a))));
+			foreach (idChunk; range.chunks(depthLimit)) {
+				foreach (i, id; idChunk.enumerate)
+					query.bind(format(":P%04d", i), id);
+				auto results = RowCache(query.execute());
+				foreach (row; results)
+					yield(row["IDS"].as!string);
+				query.reset();
+			}
+			destroy(query);
+		});
 	}
 	final private void insertID(T)(in string dbname, T range) nothrow {
 		if (isDisabled)
@@ -186,12 +204,15 @@ class IDStore {
 		database.close();
 	}
 }
+auto openStore(string path) {
+	return IDStore(path);
+}
 unittest {
 	import std.file;
 	import std.datetime;
 	import std.range : iota, zip;
 	import std.array : array;
-	import std.algorithm : map, reduce, sort, setDifference;
+	import std.algorithm : map, reduce, sort, setDifference, equal;
 	import std.stdio : writeln, writefln;
 	import std.conv : text;
 	import std.exception : assertNotThrown, assertThrown;
@@ -208,7 +229,7 @@ unittest {
 	writeln("Beginning database test");
 	StopWatch timer;
 	long[] times;
-	auto db = new IDStore(testFilename);
+	auto db = openStore(testFilename);
 	foreach (database; db.listDbs)
 		db.deleteDB(database);
 	timer.start();
@@ -271,10 +292,9 @@ unittest {
 	writefln("Database ID check (ranges) completed in %sms", times[$-1]);
 	timer.reset();
 	timer.start();
-	
-	assert(array(sort(array(db["test"].contains(words1)))) == array(sort(array(words1))), "Missing ID from set1");
-	assert(array(sort(array(db["test"].contains(words2)))) == array(sort(array(words2))), "Missing ID from set2");
-	assert(array(sort(array(db["test"].contains(words4)))) == array(sort(array(words4))), "Missing ID from set4");
+	assert(equal(db["test"].contains(words1).array.sort(), words1.array.sort()), "Missing ID from set1");
+	assert(equal(db["test"].contains(words2).array.sort(), words2.array.sort()), "Missing ID from set2");
+	assert(equal(db["test"].contains(words4).array.sort(), words4.array.sort()), "Missing ID from set4");
 	
 	timer.stop();
 	times ~= timer.peek().msecs;
