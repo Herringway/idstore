@@ -170,7 +170,7 @@ unittest {
 	timer.start();
 
 	assert(words1 !in db["test"], "Found item in empty database");
-	
+
 	timer.stop();
 	times ~= timer.peek().msecs;
 	writefln("Empty database search completed in %sms", times[$-1]);
@@ -179,7 +179,7 @@ unittest {
 
 	foreach (word; words1)
 		db["test"] ~= word;
-	
+
 	timer.stop();
 	times ~= timer.peek().msecs;
 	writefln("Database Insertion 1 (one-by-one) completed in %sms", times[$-1]);
@@ -187,24 +187,24 @@ unittest {
 	assert(db.listIDs("test") == array(words1), "Missing ids in list");
 	timer.reset();
 	timer.start();
-	
+
 	foreach (word; words2)
 		db["test"] ~= word;
-	
+
 	timer.stop();
 	times ~= timer.peek().msecs;
 	writefln("Database Insertion 2 (one-by-one 2) completed in %sms", times[$-1]);
 	timer.reset();
 	timer.start();
-	
+
 	db["test"] ~= words4;
-	
+
 	timer.stop();
 	times ~= timer.peek().msecs;
 	writefln("Database Insertion 3 (range) completed in %sms", times[$-1]);
 	timer.reset();
 	timer.start();
-	
+
 	foreach (word1, word2, word3; zip(words1, words2, words3)) {
 		assert(word1  in db["test"], "Missing ID: " ~ word1);
 		assert(word2  in db["test"], "Missing ID: " ~ word2);
@@ -217,11 +217,11 @@ unittest {
 	timer.reset();
 	db.optimize();
 	timer.start();
-	
+
 	assert(words1 in db["test"], "Missing ID from set1");
 	assert(words2 in db["test"], "Missing ID from set2");
 	assert(words4 in db["test"], "Missing ID from set4");
-	
+
 	timer.stop();
 	times ~= timer.peek().msecs;
 	writefln("Database ID check (ranges) completed in %sms", times[$-1]);
@@ -230,17 +230,17 @@ unittest {
 	assert(equal(db["test"].contains(words1).array.sort(), words1.array.sort()), "Missing ID from set1");
 	assert(equal(db["test"].contains(words2).array.sort(), words2.array.sort()), "Missing ID from set2");
 	assert(equal(db["test"].contains(words4).array.sort(), words4.array.sort()), "Missing ID from set4");
-	
+
 	timer.stop();
 	times ~= timer.peek().msecs;
 	writefln("Database ID check (ranges, contains) completed in %sms", times[$-1]);
 	timer.reset();
 	timer.start();
-	
+
 	assertNotThrown(db["test"].remove(words1), "Deletion 1 failed");
 	assertNotThrown(db["test"].remove(words2), "Deletion 2 failed");
 	assertNotThrown(db["test"].remove(words3), "Deletion of nonexistant ids failed");
-	
+
 	timer.stop();
 	times ~= timer.peek().msecs;
 	writefln("Database ID deletion completed in %sms", times[$-1]);
@@ -249,7 +249,7 @@ unittest {
 
 	assert(words1 !in db["test"], "Deletion failed in words1");
 	assert(words2 !in db["test"], "Deletion failed in words2");
-	
+
 	timer.stop();
 	times ~= timer.peek().msecs;
 	writefln("Database post-deletion ID check completed in %sms", times[$-1]);
