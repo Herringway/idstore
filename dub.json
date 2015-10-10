@@ -7,10 +7,6 @@
 	"license": "MIT",
 	"dependencies": {
 		"sqlite": ">=3.8.7",
-		"d2sqlite3": ">=0.7.0"
-	},"buildTypes": {
-		"unittest": {
-			"buildOptions": ["unittests", "debugMode", "debugInfo", "profile"]
-		}
+		"d2sqlite3": "~>0.7.2"
 	}
 }
