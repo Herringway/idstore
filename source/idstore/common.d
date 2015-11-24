@@ -1,4 +1,4 @@
-module idstore;
+module idstore.common;
 
 import std.stdio;
 struct IDStore {
