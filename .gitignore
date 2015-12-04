@@ -8,3 +8,6 @@ cookiejar.txt
 *.lib
 *.def
 *.log
+dub.selections.json
+test.txt
+githash.txt
