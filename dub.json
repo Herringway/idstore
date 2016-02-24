@@ -7,7 +7,7 @@
 	"license": "BSL",
 	"dependencies": {
 		"sqlite": ">=3.8.7",
-		"d2sqlite3": "~>0.7.2"
+		"d2sqlite3": "~>0.9"
 	},
 	"subConfigurations": {
 		"d2sqlite3": "without-lib"

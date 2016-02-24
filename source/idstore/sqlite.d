@@ -4,7 +4,7 @@ package enum depthLimit = 999;
 package enum defaultFmtString = genFmtString(depthLimit);
 package enum defaultFmtString2 = genFmtString2(depthLimit);
 package struct Sqlite {
-	import d2sqlite3 : Database, RowCache;
+	import d2sqlite3 : Database, QueryCache;
 	private Database database;
 
 	void createDB(string dbname) {
@@ -92,7 +92,7 @@ package struct Sqlite {
 			foreach (idChunk; range.chunks(depthLimit)) {
 				foreach (i, id; idChunk.enumerate(1))
 					query.bind(i, id);
-				auto results = RowCache(query.execute());
+				auto results = QueryCache(query.execute());
 				foreach (row; results)
 					yield(row["IDS"].as!string);
 				query.clearBindings();
