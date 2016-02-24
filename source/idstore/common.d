@@ -108,16 +108,15 @@ auto openStore(string path) {
 	return IDStore!Sqlite(path);
 }
 version(unittest) {
-	void test(uint testid, string filename) {
+	void test(T)(uint testid, T db) {
 		import std.file : remove, exists;
 		import std.datetime : benchmark, Duration;
 		import std.range : iota, zip, enumerate;
-		import std.array : array;
+		import std.array : array, empty;
 		import std.algorithm : map, reduce, sort, setDifference, equal;
 		import std.stdio : writeln, writefln;
 		import std.conv : text, to;
 		import std.exception : assertNotThrown, assertThrown;
-		scope(exit) if (exists(filename)) remove(filename);
 		enum count = 1000;
 		enum word = "testword";
 		enum words1 = iota(0,count).map!text;
@@ -125,10 +124,10 @@ version(unittest) {
 		enum words3 = iota(0,count).map!((a) => "Nonexistant"~text(a));
 		enum words4 = iota(0,count).map!((a) => "extra"~text(a));
 		writeln("Beginning database test ", testid);
-		auto db = openStore(filename);
 
 		void test1() {
-			assert(words1 !in db["test"], "Found item in empty database");
+			assert(word !in db["test"], "Found item in empty database");
+			assert(words1 !in db["test"], "Found one of several items in empty database");
 		}
 		void test2() {
 			db["test"] ~= word;
@@ -155,15 +154,18 @@ version(unittest) {
 			assert(words1 !in db["test"], "Deletion failed in words1");
 			assert(words2 !in db["test"], "Deletion failed in words2");
 		}
-		auto times = benchmark!(test1, test2, test3, test4, test5)(1)[].map!(to!Duration);
+		void test6() {
+			db.deleteDB("test");
+		}
+		auto times = benchmark!(test1, test2, test3, test4, test5, test6)(1)[].map!(to!Duration);
 		foreach (i, time; times.enumerate(1))
-			writefln("Test %d completed in %s", i, time);
-		writefln("Full test completed in %s on thread %s", times.reduce!((a,b) => a+b), testid);
+			writefln("%d: Test %d completed in %s", testid, i, time);
+		writefln("%d: Full test completed in %s on thread %s", testid, times.reduce!((a,b) => a+b), testid);
 	}
 }
 unittest {
 	import std.parallelism;
-	auto task1 = task!test(1, ":memory:"); //in-memory test
+	auto task1 = task!test(1, openStore(":memory:")); //in-memory test
 	task1.executeInNewThread();
 	task1.yieldForce();
 }
