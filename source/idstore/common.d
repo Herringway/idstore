@@ -32,6 +32,7 @@ struct IDStore(Database) {
 			final bool opIn_r(T)(T range) if (isInputRange!T) {
 				return db.inDB(name, range);
 			}
+			alias canFind = opIn_r;
 			final auto contains(string[] ids...) {
 				return db.contains(name, ids);
 			}
@@ -47,6 +48,7 @@ struct IDStore(Database) {
 		return instances[dbname];
 	}
 	final private bool inDB(T)(string dbname, T range) if (isInputRange!T) {
+		import std.array : empty;
 		return !contains(dbname, range).empty;
 	}
 	void createDB(string name) {
@@ -58,6 +60,9 @@ struct IDStore(Database) {
 		if (isDisabled)
 			return;
 		database.deleteIDs(name, ids);
+	}
+	void deleteDB(string db) {
+		database.deleteDB(db);
 	}
 	void insertID(T)(string name, T ids) if (isInputRange!T) {
 		if (isDisabled)
@@ -75,6 +80,10 @@ struct IDStore(Database) {
 			return ReturnType!(Database.listDBs).init;
 		return database.listDBs();
 	}
+	bool opIn_r(string db) {
+		import std.algorithm : canFind;
+		return listDbs.canFind(db);
+	}
 	auto listIDs(string db) {
 		import std.traits : ReturnType;
 		if (isDisabled)
@@ -87,8 +96,8 @@ struct IDStore(Database) {
 			return ReturnType!(Database.containsIDs!T).init;
 		return database.containsIDs(name, ids);
 	}
-	this(string path) {
-		database = Database(path);
+	this(T...)(T args) {
+		database = Database(args);
 	}
 	void close() {
 		database.close();
