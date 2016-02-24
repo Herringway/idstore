@@ -107,6 +107,12 @@ auto openStore(string path) {
 	import idstore.sqlite;
 	return IDStore!Sqlite(path);
 }
+version(Have_mysql_lited) {
+	auto openStore(string host, string user, string pass, string db) {
+		import idstore.mysql;
+		return IDStore!Mysql(host, user, pass, db);
+	}
+}
 version(unittest) {
 	void test(T)(uint testid, T db) {
 		import std.file : remove, exists;
