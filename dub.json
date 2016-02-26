@@ -18,8 +18,7 @@
 			"targetType": "library",
 			"dependencies": {
 				"mysql-lited": "~>0.3"
-			},
-			"versions": ["VibeCustomMain"]
+			}
 		},
 		{
 			"name": "without-mysql",
