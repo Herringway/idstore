@@ -3,14 +3,16 @@ import std.stdio;
 package enum depthLimit = 999;
 package enum defaultFmtString = genFmtString(depthLimit);
 package enum defaultFmtString2 = genFmtString2(depthLimit);
-package struct Sqlite {
+import idstore.common;
+import std.range.interfaces;
+package class Sqlite : Database {
 	import d2sqlite3 : Database, QueryCache;
 	private Database database;
 
-	void createDB(string dbname) {
+	override void createDB(string dbname) {
 		database.execute("CREATE TABLE IF NOT EXISTS " ~ dbname ~ " (IDS TEXT PRIMARY KEY)");
 	}
-	void insertIDs(T)(in string dbname, T range) {
+	override void insertIDs(in string dbname, ForwardRange!string range) {
 		import std.range: chunks, enumerate, hasLength;
 		import std.algorithm : min;
 		import std.string : format;
@@ -20,7 +22,7 @@ package struct Sqlite {
 		createDB(dbname);
 
 		auto fmtString = defaultFmtString2;
-		static if (hasLength!T)
+		static if (hasLength!(typeof(range)))
 			fmtString = genFmtString2(min(range.length, depthLimit));
 		auto query = database.prepare(format("INSERT INTO '%s' (IDS) VALUES %s", dbname, fmtString));
 		foreach (idChunk; range.chunks(depthLimit)) {
@@ -31,26 +33,28 @@ package struct Sqlite {
 			query.reset();
 		}
 	}
-	auto listIDs(in string dbname) {
+	override InputRange!string listIDs(in string dbname) {
+		import std.range : inputRangeObject;
 		string[] output;
 		auto query = database.prepare("SELECT * from " ~ dbname);
 		foreach (row; query.execute())
 			output ~= row["IDS"].as!string;
 		query.reset();
-		return output;
+		return inputRangeObject(output);
 	}
-	auto listDBs() {
+	override InputRange!string listDBs() {
+		import std.range : inputRangeObject;
 		string[] output;
 		auto query = database.prepare(`SELECT name FROM sqlite_master WHERE type = "table"`);
 		foreach (row; query.execute())
 			output ~= row["name"].as!string;
 		query.reset();
-		return output;
+		return inputRangeObject(output);
 	}
-	void deleteDB(string name) {
+	override void deleteDB(string name) {
 		database.execute("DROP TABLE "~name);
 	}
-	void deleteIDs(T)(string dbname, T range) {
+	override void deleteIDs(string dbname, ForwardRange!string range) {
 		import std.range: chunks, enumerate, hasLength;
 		import std.algorithm : min;
 		import std.string : format;
@@ -58,7 +62,7 @@ package struct Sqlite {
 		scope (failure)	database.execute("ROLLBACK");
 		scope (success) database.execute("COMMIT");
 		auto fmtString = defaultFmtString;
-		static if (hasLength!T)
+		static if (hasLength!(typeof(range)))
 			fmtString = genFmtString(min(range.length, depthLimit));
 		auto query = database.prepare(format("DELETE FROM '%s' WHERE IDS IN (%s)", dbname, fmtString));
 		foreach (idChunk; range.chunks(depthLimit)) {
@@ -69,24 +73,25 @@ package struct Sqlite {
 			query.reset();
 		}
 	}
-	void optimize() {
+	override void optimize() {
 		database.execute("VACUUM");
 	}
 	this(string filename) {
 		database = Database(filename);
 	}
-	void close() {
+	override void close() {
 		database.close();
 	}
-	auto containsIDs(T)(in string dbname, T range) {
+	override InputRange!string containsIDs(in string dbname, ForwardRange!string range) {
+		import std.range : inputRangeObject;
 		import std.concurrency : Generator, yield;
 		import std.range: ElementType, iota, chunks, enumerate, hasLength;
 		import std.algorithm : map, min;
 		import std.string : format;
 		import std.array : array;
-		return new Generator!(ElementType!T)( {
+		return inputRangeObject(new Generator!(ElementType!(typeof(range)))( {
 			auto fmtString = defaultFmtString;
-			static if (hasLength!T)
+			static if (hasLength!(typeof(range)))
 				fmtString = genFmtString(min(range.length, depthLimit));
 			auto query = database.prepare(format("SELECT * FROM %s WHERE IDS IN (%s) COLLATE NOCASE;", dbname, fmtString));
 			foreach (idChunk; range.chunks(depthLimit)) {
@@ -99,7 +104,7 @@ package struct Sqlite {
 				query.reset();
 			}
 			destroy(query);
-		});
+		}));
 	}
 }
 package dstring genFmtString(string Format = "?%d")(int count) {

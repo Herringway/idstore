@@ -1,7 +1,20 @@
 module idstore.common;
 
-import std.stdio;
-struct IDStore(Database) {
+private import std.stdio;
+
+private import std.range.interfaces;
+interface Database {
+	void createDB(string dbname);
+	void insertIDs(in string dbname, ForwardRange!string range);
+	InputRange!string listIDs(in string dbname);
+	InputRange!string listDBs();
+	void deleteDB(string name);
+	void deleteIDs(string dbname, ForwardRange!string range);
+	void optimize();
+	void close();
+	InputRange!string containsIDs(in string dbname, ForwardRange!string range);
+}
+struct IDStore {
 	import std.range : SortedRange, isInputRange;
 	public bool isDisabled = false;
 	private Database database;
@@ -59,7 +72,7 @@ struct IDStore(Database) {
 	void deleteID(T)(string name, T ids) if (isInputRange!T) {
 		if (isDisabled)
 			return;
-		database.deleteIDs(name, ids);
+		database.deleteIDs(name, inputRangeObject(ids));
 	}
 	void deleteDB(string db) {
 		database.deleteDB(db);
@@ -67,7 +80,7 @@ struct IDStore(Database) {
 	void insertID(T)(string name, T ids) if (isInputRange!T) {
 		if (isDisabled)
 			return;
-		database.insertIDs(name, ids);
+		database.insertIDs(name, inputRangeObject(ids));
 	}
 	void optimize() {
 		if (isDisabled)
@@ -93,24 +106,28 @@ struct IDStore(Database) {
 	auto contains(T)(string name, T ids) if (isInputRange!T) {
 		import std.traits : ReturnType;
 		if (isDisabled)
-			return ReturnType!(Database.containsIDs!T).init;
-		return database.containsIDs(name, ids);
+			return ReturnType!(Database.containsIDs).init;
+		return database.containsIDs(name, inputRangeObject(ids));
 	}
-	this(T...)(T args) {
-		database = Database(args);
-	}
+	//this(T...)(T args) {
+	//	database = Database(args);
+	//}
 	void close() {
 		database.close();
 	}
 }
-auto openStore(string path) {
+IDStore openStore(string path) {
 	import idstore.sqlite;
-	return IDStore!Sqlite(path);
+	auto output = IDStore();
+	output.database = new Sqlite(path);
+	return output;
 }
 version(Have_mysql_lited) {
-	auto openStore(string host, string user, string pass, string db) {
+	IDStore openStore(string host, ushort port, string user, string pass, string db) {
 		import idstore.mysql;
-		return IDStore!Mysql(host, user, pass, db);
+		auto output = IDStore();
+		output.database = new Mysql(host, user, pass, db, port);
+		return output;
 	}
 }
 version(unittest) {
@@ -139,7 +156,7 @@ version(unittest) {
 			db["test"] ~= word;
 
 			assert(word in db["test"], "Single word not found in database");
-			assert(db.listDbs() == ["test"], "Database list missing just-added database");
+			assert(equal(db.listDbs(), ["test"]), "Database list missing just-added database");
 		}
 		void test3() {
 			db["test"] ~= words1;
