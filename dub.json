@@ -7,11 +7,23 @@
 	"license": "BSL",
 	"dependencies": {
 		"sqlite": ">=3.8.7",
-		"d2sqlite3": "~>0.9",
-		"mysql-lited": "~>0.3"
+		"d2sqlite3": "~>0.9"
 	},
 	"subConfigurations": {
 		"d2sqlite3": "without-lib"
 	},
-	"versions": ["VibeCustomMain"]
+	"configurations": [
+		{
+			"name": "with-mysql",
+			"targetType": "library",
+			"dependencies": {
+				"mysql-lited": "~>0.3"
+			},
+			"versions": ["VibeCustomMain"]
+		},
+		{
+			"name": "without-mysql",
+			"targetType": "library"
+		}
+	]
 }
