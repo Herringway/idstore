@@ -1,8 +1,10 @@
 module idstore.common;
 
 private import std.stdio;
-
 private import std.range.interfaces;
+
+private import idstore;
+
 interface Database {
 	void createDB(string dbname);
 	void insertIDs(in string dbname, ForwardRange!string range);
@@ -109,25 +111,21 @@ struct IDStore {
 			return ReturnType!(Database.containsIDs).init;
 		return database.containsIDs(name, inputRangeObject(ids));
 	}
-	//this(T...)(T args) {
-	//	database = Database(args);
-	//}
 	void close() {
 		database.close();
 	}
 }
-IDStore openStore(string path) {
-	import idstore.sqlite;
+IDStore openStore(T, U...)(U args) {
 	auto output = IDStore();
-	output.database = new Sqlite(path);
+	output.database = new T(args);
 	return output;
 }
+IDStore openStore(string path) {
+	return openStore!SQLite(path);
+}
 version(Have_mysql_lited) {
-	IDStore openStore(string host, ushort port, string user, string pass, string db) {
-		import idstore.mysql;
-		auto output = IDStore();
-		output.database = new Mysql(host, user, pass, db, port);
-		return output;
+	deprecated("use openStore!MySQL() instead") IDStore openStore(string host, ushort port, string user, string pass, string db) {
+		return openStore!MySQL(host, user, pass, db, port);
 	}
 }
 version(unittest) {
@@ -188,7 +186,7 @@ version(unittest) {
 }
 unittest {
 	import std.parallelism;
-	auto task1 = task!test(1, openStore(":memory:")); //in-memory test
+	auto task1 = task!test(1, openStore!SQLite(":memory:")); //in-memory test
 	task1.executeInNewThread();
 	task1.yieldForce();
 }
