@@ -5,7 +5,7 @@ package enum defaultFmtString = genFmtString(depthLimit);
 package enum defaultFmtString2 = genFmtString2(depthLimit);
 import idstore.common;
 import std.range.interfaces;
-package class Sqlite : Database {
+class SQLite : Database {
 	import d2sqlite3 : Database, QueryCache;
 	private Database database;
 
@@ -33,7 +33,7 @@ package class Sqlite : Database {
 			query.reset();
 		}
 	}
-	override InputRange!string listIDs(in string dbname) {
+	override ForwardRange!string listIDs(in string dbname) {
 		import std.range : inputRangeObject;
 		string[] output;
 		auto query = database.prepare("SELECT * from " ~ dbname);
@@ -42,7 +42,7 @@ package class Sqlite : Database {
 		query.reset();
 		return inputRangeObject(output);
 	}
-	override InputRange!string listDBs() {
+	override ForwardRange!string listDBs() {
 		import std.range : inputRangeObject;
 		string[] output;
 		auto query = database.prepare(`SELECT name FROM sqlite_master WHERE type = "table"`);

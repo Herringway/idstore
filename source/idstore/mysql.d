@@ -2,7 +2,8 @@ module idstore.mysql;
 version(Have_mysql_lited) {
 	private import idstore.common;
 	private import std.range.interfaces;
-	package class Mysql : Database {
+	class MySQL : Database {
+		package:
 		import std.traits : ReturnType;
 		import mysql;
 		private ReturnType!(MySQLClient.lockConnection) database;
@@ -18,7 +19,7 @@ version(Have_mysql_lited) {
 				insert.row(id);
 			insert.flush();
 		}
-		override InputRange!string listIDs(in string dbname) {
+		override ForwardRange!string listIDs(in string dbname) {
 			import std.range : inputRangeObject;
 			string[] output;
 			database.execute(`SELECT IDS FROM '`~_dbname~`'`, (MySQLRow row) {
@@ -26,7 +27,7 @@ version(Have_mysql_lited) {
 			});
 			return inputRangeObject(output);
 		}
-		override InputRange!string listDBs() {
+		override ForwardRange!string listDBs() {
 			import std.range : inputRangeObject;
 			string[] output;
 			database.execute(`SELECT table_name FROM information_schema.tables WHERE table_schema='`~_dbname~`'`, (MySQLRow row) {

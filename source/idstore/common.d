@@ -6,8 +6,8 @@ private import std.range.interfaces;
 interface Database {
 	void createDB(string dbname);
 	void insertIDs(in string dbname, ForwardRange!string range);
-	InputRange!string listIDs(in string dbname);
-	InputRange!string listDBs();
+	ForwardRange!string listIDs(in string dbname);
+	ForwardRange!string listDBs();
 	void deleteDB(string name);
 	void deleteIDs(string dbname, ForwardRange!string range);
 	void optimize();
