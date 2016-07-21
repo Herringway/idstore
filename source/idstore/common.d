@@ -147,16 +147,22 @@ version(unittest) {
 		writeln("Beginning database test ", testid);
 
 		void test1() {
+			scope(failure)
+				db.deleteDB("test");
 			assert(word !in db["test"], "Found item in empty database");
 			assert(words1 !in db["test"], "Found one of several items in empty database");
 		}
 		void test2() {
+			scope(failure)
+				db.deleteDB("test");
 			db["test"] ~= word;
 
 			assert(word in db["test"], "Single word not found in database");
 			assert(equal(db.listDbs(), ["test"]), "Database list missing just-added database");
 		}
 		void test3() {
+			scope(failure)
+				db.deleteDB("test");
 			db["test"] ~= words1;
 			db["test"] ~= words2;
 			db["test"] ~= words4;
@@ -167,11 +173,15 @@ version(unittest) {
 			assert(equal(db["test"].contains(words4).array.sort(), words4.array.sort()), "Missing ID from set4");
 		}
 		void test4() {
+			scope(failure)
+				db.deleteDB("test");
 			assertNotThrown(db["test"].remove(words1), "Deletion 1 failed");
 			assertNotThrown(db["test"].remove(words2), "Deletion 2 failed");
 			assertNotThrown(db["test"].remove(words3), "Deletion of nonexistant ids failed");
 		}
 		void test5() {
+			scope(failure)
+				db.deleteDB("test");
 			assert(words1 !in db["test"], "Deletion failed in words1");
 			assert(words2 !in db["test"], "Deletion failed in words2");
 		}
