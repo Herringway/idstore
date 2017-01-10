@@ -124,7 +124,7 @@ IDStore openStore(string path) {
 	return openStore!SQLite(path);
 }
 version(unittest) {
-	void test(T)(string testid, T db) {
+	void test(DB, T...)(string testid, T args) {
 		import std.file : remove, exists;
 		import std.datetime : benchmark, Duration;
 		import std.range : iota, zip, enumerate;
@@ -140,7 +140,7 @@ version(unittest) {
 		enum words3 = iota(0,count).map!((a) => "Nonexistant"~text(a));
 		enum words4 = iota(0,count).map!((a) => "extra"~text(a));
 		writeln("Beginning database test ", testid);
-
+		auto db = openStore!DB(args);
 		void test1() {
 			scope(failure)
 				db.deleteDB("test");

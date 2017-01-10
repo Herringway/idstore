@@ -89,7 +89,7 @@ version(Have_dpq2) {
 		import std.process;
 		import std.conv;
 		import idstore.common : test;
-		auto task1 = task!test("postgres", openStore!PostgreSQL(environment.get("PGHOST", "localhost"), environment.get("PGPORT", "5432").to!ushort, environment.get("PGUSER", "postgres"), environment.get("PGPASS", ""), environment.get("PGDB", "postgrestest")));
+		auto task1 = task!(test!(PostgreSQL, string, ushort, string, string, string))("postgres", environment.get("PGHOST", "localhost"), environment.get("PGPORT", "5432").to!ushort, environment.get("PGUSER", "postgres"), environment.get("PGPASS", ""), environment.get("PGDB", "postgrestest"));
 		task1.executeInNewThread();
 		task1.yieldForce();
 	}

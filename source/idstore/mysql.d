@@ -66,7 +66,7 @@ version(Have_mysql_lited) {
 		import std.process;
 		import std.conv;
 		import idstore.common : test;
-		auto task1 = task!test("mysql", openStore!MySQL(environment.get("MYHOST", "localhost"), environment.get("MYPORT", "3306").to!ushort, environment.get("MYUSER", "root"), environment.get("MYPASS", ""), environment.get("MYDB", "mysqltest")));
+		auto task1 = task!(test!(MySQL, string, ushort, string, string, string))("mysql", environment.get("MYHOST", "localhost"), environment.get("MYPORT", "3306").to!ushort, environment.get("MYUSER", "root"), environment.get("MYPASS", ""), environment.get("MYDB", "mysqltest"));
 		task1.executeInNewThread();
 		task1.yieldForce();
 	}
