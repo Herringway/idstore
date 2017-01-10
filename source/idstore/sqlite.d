@@ -119,7 +119,7 @@ alias genFmtString2 = genFmtString!"(?%d)";
 unittest {
 	import std.parallelism;
 	import idstore.common : test;
-	auto task1 = task!test(1, openStore!SQLite(":memory:")); //in-memory test
+	auto task1 = task!test("sqlite", openStore!SQLite(":memory:")); //in-memory test
 	task1.executeInNewThread();
 	task1.yieldForce();
 }

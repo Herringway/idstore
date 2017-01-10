@@ -129,7 +129,7 @@ version(Have_mysql_lited) {
 	}
 }
 version(unittest) {
-	void test(T)(uint testid, T db) {
+	void test(T)(string testid, T db) {
 		import std.file : remove, exists;
 		import std.datetime : benchmark, Duration;
 		import std.range : iota, zip, enumerate;
@@ -190,7 +190,7 @@ version(unittest) {
 		}
 		auto times = benchmark!(test1, test2, test3, test4, test5, test6)(1)[].map!(to!Duration);
 		foreach (i, time; times.enumerate(1))
-			writefln("%d: Test %d completed in %s", testid, i, time);
-		writefln("%d: Full test completed in %s on thread %s", testid, times.reduce!((a,b) => a+b), testid);
+			writefln("%s: Test %d completed in %s", testid, i, time);
+		writefln("%s: Full test completed in %s", testid, times.reduce!((a,b) => a+b));
 	}
 }
