@@ -1,6 +1,7 @@
 services:
   - mysql
   - postgresql
+dist: trusty
 before_script:
   - psql -c 'create database postgrestest;' -U postgres
   - mysql -e 'CREATE DATABASE mysqltest;'
