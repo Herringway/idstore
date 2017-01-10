@@ -61,4 +61,13 @@ version(Have_mysql_lited) {
 			return inputRangeObject(output);
 		}
 	}
+	unittest {
+		import std.parallelism;
+		import std.process;
+		import std.conv;
+		import idstore.common : test;
+		auto task1 = task!test("mysql", openStore!MySQL(environment.get("MYHOST", "localhost"), environment.get("MYPORT", "3306").to!ushort, environment.get("MYUSER", "root"), environment.get("MYPASS", ""), environment.get("MYDB", "mysqltest")));
+		task1.executeInNewThread();
+		task1.yieldForce();
+	}
 }
