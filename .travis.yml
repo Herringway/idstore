@@ -17,7 +17,7 @@ install:
 script:
   - dub test -b unittest-cov
   - ./doveralls
-  addons:
+addons:
   apt:
     packages:
     - libevent-dev
