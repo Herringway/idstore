@@ -6,13 +6,20 @@
 	"targetType": "library",
 	"license": "BSL",
 	"dependencies": {
-		"sqlite": ">=3.8.7",
 		"d2sqlite3": "~>0.9"
 	},
 	"subConfigurations": {
 		"d2sqlite3": "without-lib"
 	},
 	"configurations": [
+		{
+			"name": "with-all",
+			"targetType": "library",
+			"dependencies": {
+				"dpq2": "~>0.6.20",
+				"mysql-lited": "~>0.3.15"
+			}
+		},
 		{
 			"name": "with-pgsql",
 			"targetType": "library",
@@ -21,8 +28,28 @@
 			}
 		},
 		{
-			"name": "without-pgsql",
+			"name": "with-mysql",
+			"targetType": "library",
+			"dependencies": {
+				"mysql-lited": "~>0.3.15"
+			}
+		},
+		{
+			"name": "with-noremote",
 			"targetType": "library"
 		}
-	]
+	],
+	"sourceFiles-windows-x86_64": [
+		"lib/win-amd64/sqlite3.lib"
+	],
+	"sourceFiles-windows-x86": [
+		"lib/win-i386/sqlite3.lib"
+	],
+	"copyFiles-windows-x86_64": [
+		"lib/win-amd64/sqlite3.dll"
+	],
+	"copyFiles-windows-x86": [
+		"lib/win-i386/sqlite3.dll"
+	],
+	"libs-posix": ["sqlite3"]
 }
