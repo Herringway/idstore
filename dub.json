@@ -14,13 +14,14 @@
 	},
 	"configurations": [
 		{
-			"name": "with-mysql",
+			"name": "with-pgsql",
 			"targetType": "library",
 			"dependencies": {
+				"dpq2": "~>0.6.20"
 			}
 		},
 		{
-			"name": "without-mysql",
+			"name": "without-pgsql",
 			"targetType": "library"
 		}
 	]
