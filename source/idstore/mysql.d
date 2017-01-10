@@ -3,7 +3,6 @@ version(Have_mysql_lited) {
 	private import idstore.common;
 	private import std.range.interfaces;
 	class MySQL : Database {
-		package:
 		import std.traits : ReturnType;
 		import mysql;
 		private ReturnType!(MySQLClient.lockConnection) database;
