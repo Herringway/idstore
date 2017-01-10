@@ -5,6 +5,8 @@ before_script:
   - psql -c 'create database postgrestest;' -U postgres
   - mysql -e 'CREATE DATABASE mysqltest;'
 language: d
+env:
+  - MYHOST=127.0.0.1
 sudo: false
 d:
   - dmd
