@@ -33,7 +33,7 @@ class SQLite : Database {
 			query.reset();
 		}
 	}
-	override ForwardRange!string listIDs(in string dbname) {
+	override InputRange!string listIDs(in string dbname) {
 		import std.range : inputRangeObject;
 		string[] output;
 		auto query = database.prepare("SELECT * from " ~ dbname);
@@ -42,7 +42,7 @@ class SQLite : Database {
 		query.reset();
 		return inputRangeObject(output);
 	}
-	override ForwardRange!string listDBs() {
+	override InputRange!string listDBs() {
 		import std.range : inputRangeObject;
 		string[] output;
 		auto query = database.prepare(`SELECT name FROM sqlite_master WHERE type = "table"`);
