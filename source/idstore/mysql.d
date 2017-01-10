@@ -45,7 +45,7 @@ version(Have_mysql_lited) {
 		}
 		override void optimize() {
 		}
-		this(string host, string user, string pass, string db, ushort port = 3306) {
+		this(string host, ushort port, string user, string pass, string db) {
 			_dbname = db;
 			auto client = new MySQLClient(host, port, user, pass, db);
 			database = client.lockConnection();
