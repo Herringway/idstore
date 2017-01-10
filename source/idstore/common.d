@@ -123,11 +123,6 @@ IDStore openStore(T, U...)(U args) {
 IDStore openStore(string path) {
 	return openStore!SQLite(path);
 }
-version(Have_mysql_lited) {
-	deprecated("use openStore!MySQL() instead") IDStore openStore(string host, ushort port, string user, string pass, string db) {
-		return openStore!MySQL(host, user, pass, db, port);
-	}
-}
 version(unittest) {
 	void test(T)(string testid, T db) {
 		import std.file : remove, exists;
