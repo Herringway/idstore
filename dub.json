@@ -9,7 +9,7 @@
 		"d2sqlite3": "~>0.9"
 	},
 	"subConfigurations": {
-		"d2sqlite3": "without-lib"
+		"d2sqlite3": "all-included"
 	},
 	"configurations": [
 		{
@@ -44,12 +44,5 @@
 	],
 	"sourceFiles-windows-x86": [
 		"lib/win-i386/sqlite3.lib"
-	],
-	"copyFiles-windows-x86_64": [
-		"lib/win-amd64/sqlite3.dll"
-	],
-	"copyFiles-windows-x86": [
-		"lib/win-i386/sqlite3.dll"
-	],
-	"libs-posix": ["sqlite3"]
+	]
 }
