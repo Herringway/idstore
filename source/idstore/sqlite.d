@@ -115,3 +115,11 @@ package dstring genFmtString(string Format = "?%d")(int count) {
 	return iota(1, count+1).map!((int x) => format(Format, x)).joiner(",").array;
 }
 alias genFmtString2 = genFmtString!"(?%d)";
+
+unittest {
+	import std.parallelism;
+	import idstore.common : test;
+	auto task1 = task!test(1, openStore!SQLite(":memory:")); //in-memory test
+	task1.executeInNewThread();
+	task1.yieldForce();
+}

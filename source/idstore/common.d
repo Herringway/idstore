@@ -194,9 +194,3 @@ version(unittest) {
 		writefln("%d: Full test completed in %s on thread %s", testid, times.reduce!((a,b) => a+b), testid);
 	}
 }
-unittest {
-	import std.parallelism;
-	auto task1 = task!test(1, openStore!SQLite(":memory:")); //in-memory test
-	task1.executeInNewThread();
-	task1.yieldForce();
-}
