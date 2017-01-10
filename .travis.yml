@@ -1,8 +1,6 @@
 services:
   - mysql
   - postgresql
-  - sqlite3
-dist: trusty
 before_script:
   - psql -c 'create database postgrestest;' -U postgres
   - mysql -e 'CREATE DATABASE mysqltest;'
@@ -17,7 +15,3 @@ install:
 script:
   - dub test -b unittest-cov
   - ./doveralls
-addons:
-  apt:
-    packages:
-    - libevent-dev
