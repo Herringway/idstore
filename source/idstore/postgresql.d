@@ -92,24 +92,40 @@ version(Have_dpq2) {
 		}
 		override void optimize() {}
 		override void close() {}
-		override InputRange!string containsIDs(in string dbname, ForwardRange!string range) {
-			import std.range : inputRangeObject;
-			import std.concurrency : Generator, yield;
-			import std.range: ElementType, iota, chunks, enumerate, hasLength;
-			import std.algorithm : map, min;
-			import std.string : format, assumeUTF;
-			import std.array : array;
+		override ForwardRange!string containsIDs(in string dbname, ForwardRange!string range) {
 			import dpq2.conv.to_d_types : Bson;
-			return inputRangeObject(new Generator!(ElementType!(typeof(range)))( {
-				QueryParams query;
-				query.sqlCommand = "SELECT * FROM "~dbname~" WHERE IDS=ANY($1::text[]);";
-				query.args.length = 1;
-				query.args[0] = Bson(range.map!(x => Bson(x)).array).bsonToValue;
-				auto result = database.execParams(query);
-				foreach (id; 0..result.length) {
-					yield(result[id]["IDS"].data.assumeUTF);
+			import std.algorithm : map;
+			import std.array : array;
+			import std.range : inputRangeObject;
+			import std.range : inputRangeObject;
+			import std.string : assumeUTF;
+			import std.traits : ReturnType;
+			static struct Result {
+				private Connection db;
+				private size_t index;
+				private ReturnType!(database.exec) result;
+				auto save() {
+					return this;
 				}
-			}));
+				auto front() {
+					return result[index]["IDS"].data.assumeUTF;
+				}
+				void popFront() {
+					index++;
+				}
+				bool empty() {
+					return index >= result.length;
+				}
+				this(Connection db_, ForwardRange!string range_, string dbname_) {
+					QueryParams query;
+					query.sqlCommand = "SELECT * FROM "~dbname_~" WHERE IDS=ANY($1::text[]);";
+					query.args.length = 1;
+					query.args[0] = Bson(range_.map!(x => Bson(x)).array).bsonToValue;
+					db = db_;
+					result = db.execParams(query);
+				}
+			}
+			return inputRangeObject(Result(database, range, dbname));
 		}
 	}
 
