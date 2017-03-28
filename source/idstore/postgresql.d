@@ -90,8 +90,7 @@ version(Have_dpq2) {
 			query.args[0] = Bson(range.map!(x => Bson(x)).array).bsonToValue;
 			database.execParams(query);
 		}
-		override void optimize() {
-		}
+		override void optimize() {}
 		override void close() {}
 		override InputRange!string containsIDs(in string dbname, ForwardRange!string range) {
 			import std.range : inputRangeObject;
