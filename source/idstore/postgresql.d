@@ -27,25 +27,57 @@ version(Have_dpq2) {
 			query.args[0] = Bson(range.map!(x => Bson(x)).array).bsonToValue;
 			database.execParams(query);
 		}
-		override InputRange!string listIDs(in string dbname) {
+		override ForwardRange!string listIDs(in string dbname) {
 			import std.range : inputRangeObject;
-			import std.concurrency : Generator, yield;
-			return inputRangeObject(new Generator!string( {
-				auto result = database.exec("SELECT IDS FROM '"~_dbname~"'");
-				foreach (val; 0..result.length) {
-					yield(result[val]["IDS"].as!PGtext);
+			import std.traits: ReturnType;
+			static struct Result {
+				private Connection db;
+				private size_t index;
+				private ReturnType!(database.exec) result;
+				auto save() {
+					return this;
 				}
-			}));
+				auto front() {
+					return result[index]["IDS"].as!PGtext;
+				}
+				void popFront() {
+					index++;
+				}
+				bool empty() {
+					return index >= result.length;
+				}
+				this(Connection db_, string dbname_) {
+					db = db_;
+					result = db.exec("SELECT IDS FROM '"~dbname_~"'");
+				}
+			}
+			return inputRangeObject(Result(database, dbname));
 		}
-		override InputRange!string listDBs() {
+		override ForwardRange!string listDBs() {
 			import std.range : inputRangeObject;
-			import std.concurrency : Generator, yield;
-			return inputRangeObject(new Generator!string( {
-				auto result = database.exec("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';");
-				foreach (val; 0..result.length) {
-					yield(result[val]["table_name"].as!PGtext);
+			import std.traits : ReturnType;
+			static struct Result {
+				private Connection db;
+				private size_t index;
+				private ReturnType!(database.exec) result;
+				auto save() {
+					return this;
 				}
-			}));
+				auto front() {
+					return result[index]["table_name"].as!PGtext;
+				}
+				void popFront() {
+					index++;
+				}
+				bool empty() {
+					return index >= result.length;
+				}
+				this(Connection db_) {
+					db = db_;
+					result = db.exec("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';");
+				}
+			}
+			return inputRangeObject(Result(database));
 		}
 		override void deleteDB(string name) {
 			database.exec("DROP TABLE "~name);

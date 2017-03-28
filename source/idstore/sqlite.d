@@ -33,23 +33,59 @@ class SQLite : Database {
 			query.reset();
 		}
 	}
-	override InputRange!string listIDs(in string dbname) {
+	override ForwardRange!string listIDs(in string dbname) {
+		import d2sqlite3 : Statement;
 		import std.range : inputRangeObject;
-		string[] output;
-		auto query = database.prepare("SELECT * from " ~ dbname);
-		foreach (row; query.execute())
-			output ~= row["IDS"].as!string;
-		query.reset();
-		return inputRangeObject(output);
+		import std.traits : ReturnType;
+		static struct Result {
+			private Database db;
+			private ReturnType!(Statement.execute) result;
+			auto save() {
+				return this;
+			}
+			auto front() {
+				return result.front.peek!string(0);
+			}
+			void popFront() {
+				result.popFront();
+			}
+			bool empty() {
+				return result.empty;
+			}
+			this(Database db_, string dbname_) {
+				db = db_;
+				auto query = db.prepare("SELECT IDS FROM '"~dbname_~"'");
+				result = query.execute();
+			}
+		}
+		return inputRangeObject(Result(database, dbname));
 	}
-	override InputRange!string listDBs() {
+	override ForwardRange!string listDBs() {
+		import d2sqlite3 : Statement;
 		import std.range : inputRangeObject;
-		string[] output;
-		auto query = database.prepare(`SELECT name FROM sqlite_master WHERE type = "table"`);
-		foreach (row; query.execute())
-			output ~= row["name"].as!string;
-		query.reset();
-		return inputRangeObject(output);
+		import std.traits : ReturnType;
+		static struct Result {
+			private Database db;
+			private ReturnType!(Statement.execute) result;
+			auto save() {
+				return this;
+			}
+			auto front() {
+				return result.front.peek!string(0);
+			}
+			void popFront() {
+				result.popFront();
+			}
+			bool empty() {
+				return result.empty;
+			}
+			this(Database db_) {
+				db = db_;
+				auto query = db.prepare("SELECT name FROM 'sqlite_master' WHERE type = 'table'");
+				result = query.execute();
+			}
+		}
+		return inputRangeObject(Result(database));
 	}
 	override void deleteDB(string name) {
 		database.execute("DROP TABLE "~name);

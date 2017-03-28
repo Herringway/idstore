@@ -55,7 +55,7 @@ version(Have_mysql_lited) {
 			database = new MySQLClient(host, port, user, pass, db);
 		}
 		override void close() {}
-		override InputRange!string containsIDs(in string dbname, ForwardRange!string range) {
+		override ForwardRange!string containsIDs(in string dbname, ForwardRange!string range) {
 			import std.string : format;
 			import std.array : array;
 			import std.range : inputRangeObject;
