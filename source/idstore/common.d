@@ -123,9 +123,6 @@ IDStore openStore(T, U...)(U args) {
 	output.database = new T(args);
 	return output;
 }
-IDStore openStore(string path) {
-	return openStore!SQLite(path);
-}
 version(unittest) {
 	void test(DB, T...)(string testid, T args) {
 		import std.file : remove, exists;
