@@ -7,9 +7,7 @@ version(Have_dpq2) {
 		import std.conv : text;
 		import dpq2;
 		private Connection database;
-		string _dbname;
 		this(string host, ushort port, string user, string pass, string db) {
-			_dbname = db;
 			database = new Connection("dbname="~db~" user="~user~" host="~host~" port="~port.text~" password="~pass);
 		}
 
