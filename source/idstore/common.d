@@ -114,6 +114,9 @@ struct IDStore {
 	void close() {
 		database.close();
 	}
+	bool opCast(T: bool)() const {
+		return database !is null;
+	}
 }
 IDStore openStore(T, U...)(U args) {
 	auto output = IDStore();
