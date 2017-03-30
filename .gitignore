@@ -11,3 +11,4 @@ cookiejar.txt
 dub.selections.json
 test.txt
 githash.txt
+*.a
