@@ -5,8 +5,11 @@
 	"authors": ["Cameron \"Herringway\" Ross"],
 	"targetType": "library",
 	"license": "BSL",
+	"libs-posix": ["pq"],
 	"dependencies": {
-		"d2sqlite3": "~>0.13.1",
+		"d2sqlite3": "~>0.13.1"
+	},
+	"dependencies-windows": {
 		"postgres": "*"
 	},
 	"subConfigurations": {
