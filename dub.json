@@ -6,7 +6,8 @@
 	"targetType": "library",
 	"license": "BSL",
 	"dependencies": {
-		"d2sqlite3": "~>0.9"
+		"d2sqlite3": "~>0.13.1",
+		"postgres": "*"
 	},
 	"subConfigurations": {
 		"d2sqlite3": "all-included"
@@ -16,7 +17,7 @@
 			"name": "with-all",
 			"targetType": "library",
 			"dependencies": {
-				"dpq2": "~>0.6.20",
+				"dpq2": "~>0.6.23",
 				"mysql-lited": "~>0.3.15"
 			}
 		},
@@ -24,7 +25,7 @@
 			"name": "with-pgsql",
 			"targetType": "library",
 			"dependencies": {
-				"dpq2": "~>0.6.20"
+				"dpq2": "~>0.6.23"
 			}
 		},
 		{
