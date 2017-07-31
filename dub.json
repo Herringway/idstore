@@ -10,7 +10,7 @@
 		"d2sqlite3": "~>0.13.1"
 	},
 	"dependencies-windows": {
-		"postgres": "*"
+		"postgres": { "version": "*", "optional": true, "default": true }
 	},
 	"subConfigurations": {
 		"d2sqlite3": "all-included"
