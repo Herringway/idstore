@@ -9,6 +9,7 @@ version(Have_dpq2) {
 		private Connection database;
 		this(string host, ushort port, string user, string pass, string db) {
 			database = new Connection("dbname="~db~" user="~user~" host="~host~" port="~port.text~" password="~pass);
+			database.exec("SET client_min_messages = error;");
 		}
 
 		override void createDB(string dbname) {
@@ -17,13 +18,16 @@ version(Have_dpq2) {
 		override void insertIDs(in string dbname, ForwardRange!string range) {
 			import std.algorithm : map;
 			import std.array : array;
+			import std.range : chunks;
 			import dpq2.conv.to_d_types : Bson;
 			createDB(dbname);
 			QueryParams query;
 			query.sqlCommand = "INSERT INTO "~dbname~" (IDS) VALUES (unnest($1::text[]));";
 			query.args.length = 1;
-			query.args[0] = Bson(range.map!(x => Bson(x)).array).bsonToValue;
-			database.execParams(query);
+			foreach (chunk; range.chunks(10000)) {
+				query.args[0] = Bson(chunk.map!(x => Bson(x)).array).bsonToValue;
+				database.execParams(query);
+			}
 		}
 		override ForwardRange!string listIDs(in string dbname) {
 			import std.range : inputRangeObject;
