@@ -14,5 +14,5 @@ install:
   - wget -O doveralls "https://github.com/ColdenCullen/doveralls/releases/download/v1.3.1/doveralls_linux_travis"
   - chmod +x doveralls
 script:
-  - dub test -b unittest-cov
+  - dub test -b unittest-cov --combined
   - ./doveralls
