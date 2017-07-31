@@ -22,7 +22,7 @@ struct IDStore {
 	private Database database;
 	alias opIndex = db;
 	final public auto ref db(string dbname) {
-		struct DB {
+		static struct DB {
 			string name;
 			IDStore db;
 			this(IDStore store, string name) {
