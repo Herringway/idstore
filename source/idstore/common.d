@@ -133,6 +133,7 @@ version(unittest) {
 		import std.stdio : writeln, writefln;
 		import std.conv : text, to;
 		import std.exception : assertNotThrown, assertThrown;
+		import std.experimental.logger;
 		enum count = 1000;
 		enum word = "testword";
 		enum words1 = iota(0,count).map!text;
@@ -146,6 +147,7 @@ version(unittest) {
 				db.deleteDB("test");
 			assert(word !in db["test"], "Found item in empty database");
 			assert(words1 !in db["test"], "Found one of several items in empty database");
+			info(DB.stringof ~ "test 1 complete");
 		}
 		void test2() {
 			scope(failure)
@@ -154,6 +156,7 @@ version(unittest) {
 
 			assert(word in db["test"], "Single word not found in database");
 			assert(equal(db.listDbs(), ["test"]), "Database list missing just-added database");
+			info(DB.stringof ~ "test 2 complete");
 		}
 		void test3() {
 			scope(failure)
@@ -166,6 +169,7 @@ version(unittest) {
 			assert(equal(db["test"].contains(words2).array.sort(), words2.array.sort()), "Missing ID from set2");
 			assert(db["test"].contains(words3).empty, "Found ID from set3");
 			assert(equal(db["test"].contains(words4).array.sort(), words4.array.sort()), "Missing ID from set4");
+			info(DB.stringof ~ "test 3 complete");
 		}
 		void test4() {
 			scope(failure)
@@ -173,15 +177,18 @@ version(unittest) {
 			assertNotThrown(db["test"].remove(words1), "Deletion 1 failed");
 			assertNotThrown(db["test"].remove(words2), "Deletion 2 failed");
 			assertNotThrown(db["test"].remove(words3), "Deletion of nonexistant ids failed");
+			info(DB.stringof ~ "test 4 complete");
 		}
 		void test5() {
 			scope(failure)
 				db.deleteDB("test");
 			assert(words1 !in db["test"], "Deletion failed in words1");
 			assert(words2 !in db["test"], "Deletion failed in words2");
+			info(DB.stringof ~ "test 5 complete");
 		}
 		void test6() {
 			db.deleteDB("test");
+			info(DB.stringof ~ "test 6 complete");
 		}
 		auto times = benchmark!(test1, test2, test3, test4, test5, test6)(1)[].map!(to!Duration);
 		foreach (i, time; times.enumerate(1))
