@@ -20,22 +20,22 @@
 			"name": "with-all",
 			"targetType": "library",
 			"dependencies": {
-				"dpq2": "~>0.6.23",
-				"mysql-lited": "~>0.3.15"
+				"dpq2": "~>0.6.24",
+				"mysql-lited": "~>0.3.17"
 			}
 		},
 		{
 			"name": "with-pgsql",
 			"targetType": "library",
 			"dependencies": {
-				"dpq2": "~>0.6.23"
+				"dpq2": "~>0.6.24"
 			}
 		},
 		{
 			"name": "with-mysql",
 			"targetType": "library",
 			"dependencies": {
-				"mysql-lited": "~>0.3.15"
+				"mysql-lited": "~>0.3.17"
 			}
 		},
 		{
