@@ -14,7 +14,7 @@ version(Have_mysql_native) {
 		override void insertIDs(const string dbname, ForwardRange!string range) {
 			import std.format : format;
 			createDB(dbname);
-			auto prepared = database.prepare(format!"INSERT INTO `%s` (IDs) VALUES (?)"(_dbname));
+			auto prepared = database.prepare(format!"INSERT INTO `%s` (IDs) VALUES (?)"(dbname));
 			foreach (id; range) {
 				prepared.setArgs(id);
 				prepared.exec();
