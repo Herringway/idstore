@@ -126,7 +126,8 @@ IDStore openStore(T, U...)(U args) {
 version(unittest) {
 	void test(DB, T...)(string testid, T args) {
 		import std.file : remove, exists;
-		import std.datetime : benchmark, Duration;
+		import std.datetime.stopwatch : benchmark;
+		import std.datetime : Duration;
 		import std.range : iota, zip, enumerate;
 		import std.array : array, empty;
 		import std.algorithm : map, reduce, sort, setDifference, equal;
