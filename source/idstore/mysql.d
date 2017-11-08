@@ -1,69 +1,82 @@
 module idstore.mysql;
-version(Have_mysql_lited) {
+version(Have_mysql_native) {
 	private import idstore.common;
 	private import std.range.interfaces;
 	class MySQL : Database {
 		import std.traits : ReturnType;
 		import mysql;
-		private MySQLClient database;
+		private Connection database;
 		string _dbname;
 
-		override void createDB(string dbname) {
-			auto lock = database.lockConnection();
-			lock.execute("CREATE TABLE IF NOT EXISTS " ~ dbname ~ " (IDS VARCHAR(255) PRIMARY KEY)");
+		override void createDB(const string dbname) {
+			database.exec("CREATE TABLE IF NOT EXISTS " ~ dbname ~ " (IDS VARCHAR(127) PRIMARY KEY)");
 		}
-		override void insertIDs(in string dbname, ForwardRange!string range) {
+		override void insertIDs(const string dbname, ForwardRange!string range) {
+			import std.format : format;
 			createDB(dbname);
-			auto lock = database.lockConnection();
-			auto insert = inserter(lock, dbname, "IDS");
-			foreach (id; range)
-				insert.row(id);
-			insert.flush();
+			auto prepared = database.prepare(format!"INSERT INTO `%s` (IDs) VALUES (?)"(_dbname));
+			foreach (id; range) {
+				prepared.setArgs(id);
+				prepared.exec();
+			}
 		}
-		override ForwardRange!string listIDs(in string dbname) {
+		override ForwardRange!string listIDs(const string dbname) {
 			import std.range : inputRangeObject;
-			auto lock = database.lockConnection();
+			import std.format : format;
 			string[] output;
-			lock.execute(`SELECT IDS FROM '`~_dbname~`'`, (MySQLRow row) {
-				output ~= row.IDS.get!string;
-			});
+			createDB(dbname);
+			auto prepared = database.prepare(format!"SELECT IDS FROM `%s`"(dbname));
+			foreach (row; prepared.query()) {
+				output ~= row[0].get!string;
+			}
 			return inputRangeObject(output);
 		}
 		override ForwardRange!string listDBs() {
 			import std.range : inputRangeObject;
 			string[] output;
-			auto lock = database.lockConnection();
-			lock.execute(`SELECT table_name FROM information_schema.tables WHERE table_schema='`~_dbname~`'`, (MySQLRow row) {
-				output ~= row.table_name.get!string;
-			});
+			auto prepared = database.prepare("SELECT table_name FROM information_schema.tables WHERE table_schema=?");
+			prepared.setArgs(_dbname);
+			foreach (row; prepared.query()) {
+				output ~= row[0].get!string;
+			}
 			return inputRangeObject(output);
 		}
-		override void deleteDB(string name) {
-			auto lock = database.lockConnection();
-			lock.execute("DROP TABLE "~name);
+		override void deleteDB(const string name) {
+			database.exec("DROP TABLE IF EXISTS "~name);
 		}
-		override void deleteIDs(string dbname, ForwardRange!string range) {
+		override void deleteIDs(const string dbname, ForwardRange!string range) {
 			import std.string : format;
 			import std.array : array;
-			auto lock = database.lockConnection();
-			lock.execute(format("DELETE FROM %s WHERE IDS IN ", dbname)~range.array.placeholders, range.array);
+			createDB(dbname);
+			auto prepared = database.prepare(format!"DELETE FROM `%s` WHERE IDS=?"(dbname));
+			foreach (id; range) {
+				prepared.setArgs(id);
+				prepared.exec();
+			}
 		}
 		override void optimize() {
 		}
-		this(string host, ushort port, string user, string pass, string db) {
+		this(const string host, const ushort port, const string user, const string pass, const string db) {
 			_dbname = db;
-			database = new MySQLClient(host, port, user, pass, db);
+			database = new Connection(host, user, pass, db, port);
 		}
-		override void close() {}
-		override ForwardRange!string containsIDs(in string dbname, ForwardRange!string range) {
+		override void close() {
+			database.close();
+		}
+		override ForwardRange!string containsIDs(const string dbname, ForwardRange!string range) {
 			import std.string : format;
 			import std.array : array;
 			import std.range : inputRangeObject;
 			string[] output;
-			auto lock = database.lockConnection();
-			lock.execute(format("SELECT IDS FROM %s WHERE IDS IN ", dbname)~range.array.placeholders, range.array, (MySQLRow row) {
-				output ~= row.IDS.get!string;
-			});
+			createDB(dbname);
+			auto prepared = database.prepare(format!"SELECT IDS FROM `%s` WHERE IDS=?"(dbname));
+			foreach (id; range) {
+				prepared.setArgs(id);
+				auto res = prepared.query();
+				if (!res.empty) {
+					output ~= res.front[0].get!string;
+				}
+			}
 			return inputRangeObject(output);
 		}
 	}
