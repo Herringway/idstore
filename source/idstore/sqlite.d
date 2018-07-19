@@ -6,7 +6,7 @@ package enum defaultFmtString2 = genFmtString2(depthLimit);
 import idstore.common;
 import std.range.interfaces;
 class SQLite : Database {
-	import d2sqlite3 : Database, QueryCache;
+	import d2sqlite3 : Database, CachedResults;
 	private Database database;
 
 	override void createDB(string dbname) {
@@ -133,7 +133,7 @@ class SQLite : Database {
 			foreach (idChunk; range.chunks(depthLimit)) {
 				foreach (i, id; idChunk.enumerate(1))
 					query.bind(i, id);
-				auto results = QueryCache(query.execute());
+				auto results = CachedResults(query.execute());
 				foreach (row; results)
 					yield(row["IDS"].as!string);
 				query.clearBindings();

@@ -7,7 +7,7 @@
 	"license": "BSL",
 	"libs-posix": ["pq"],
 	"dependencies": {
-		"d2sqlite3": "~>0.13.1"
+		"d2sqlite3": "~>0.16.0"
 	},
 	"dependencies-windows": {
 		"postgres": { "version": "*", "optional": true, "default": true }
@@ -20,7 +20,7 @@
 			"name": "with-all",
 			"targetType": "library",
 			"dependencies": {
-				"dpq2": "~>0.6.24",
+				"dpq2": "~>1.0.0-alpha.12",
 				"mysql-native": "~>1.1.2"
 			}
 		},
@@ -28,7 +28,7 @@
 			"name": "with-pgsql",
 			"targetType": "library",
 			"dependencies": {
-				"dpq2": "~>0.6.24"
+				"dpq2": "~>1.0.0-alpha.12"
 			}
 		},
 		{
