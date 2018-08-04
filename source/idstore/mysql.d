@@ -17,7 +17,7 @@ version(Have_mysql_native) {
 			auto prepared = database.prepare(format!"INSERT INTO `%s` (IDs) VALUES (?)"(dbname));
 			foreach (id; range) {
 				prepared.setArgs(id);
-				prepared.exec();
+				database.exec(prepared);
 			}
 		}
 		override ForwardRange!string listIDs(const string dbname) {
@@ -26,7 +26,7 @@ version(Have_mysql_native) {
 			string[] output;
 			createDB(dbname);
 			auto prepared = database.prepare(format!"SELECT IDS FROM `%s`"(dbname));
-			foreach (row; prepared.query()) {
+			foreach (row; database.query(prepared)) {
 				output ~= row[0].get!string;
 			}
 			return inputRangeObject(output);
@@ -36,7 +36,7 @@ version(Have_mysql_native) {
 			string[] output;
 			auto prepared = database.prepare("SELECT table_name FROM information_schema.tables WHERE table_schema=?");
 			prepared.setArgs(_dbname);
-			foreach (row; prepared.query()) {
+			foreach (row; database.query(prepared)) {
 				output ~= row[0].get!string;
 			}
 			return inputRangeObject(output);
@@ -51,7 +51,7 @@ version(Have_mysql_native) {
 			auto prepared = database.prepare(format!"DELETE FROM `%s` WHERE IDS=?"(dbname));
 			foreach (id; range) {
 				prepared.setArgs(id);
-				prepared.exec();
+				database.exec(prepared);
 			}
 		}
 		override void optimize() {
@@ -72,7 +72,7 @@ version(Have_mysql_native) {
 			auto prepared = database.prepare(format!"SELECT IDS FROM `%s` WHERE IDS=?"(dbname));
 			foreach (id; range) {
 				prepared.setArgs(id);
-				auto res = prepared.query();
+				auto res = database.query(prepared);
 				if (!res.empty) {
 					output ~= res.front[0].get!string;
 				}

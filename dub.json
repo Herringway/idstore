@@ -21,7 +21,7 @@
 			"targetType": "library",
 			"dependencies": {
 				"dpq2": "~>1.0.0-alpha.12",
-				"mysql-native": "~>1.1.2"
+				"mysql-native": "~>2.2.2"
 			}
 		},
 		{
@@ -35,7 +35,7 @@
 			"name": "with-mysql",
 			"targetType": "library",
 			"dependencies": {
-				"mysql-native": "~>1.1.2"
+				"mysql-native": "~>2.2.2"
 			}
 		},
 		{
