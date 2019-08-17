@@ -41,10 +41,10 @@ struct IDStore {
 			final void remove(T)(T range) if (isInputRange!T) {
 				db.deleteID(name, range);
 			}
-			final bool opIn_r(string[] ids...) {
+			final bool opBinaryRight(string op : "in")(string[] ids...) {
 				return db.inDB(name, ids);
 			}
-			final bool opIn_r(T)(T range) if (isInputRange!T) {
+			final bool opBinaryRight(string op :"in", T)(T range) if (isInputRange!T) {
 				return db.inDB(name, range);
 			}
 			alias canFind = opIn_r;
