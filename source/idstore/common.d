@@ -1,25 +1,14 @@
 module idstore.common;
 
-private import std.stdio;
-private import std.range.interfaces;
+import std.stdio;
+import std.range.interfaces;
 
-private import idstore;
+import ddbc;
 
-interface Database {
-	void createDB(string dbname);
-	void insertIDs(in string dbname, ForwardRange!string range);
-	ForwardRange!string listIDs(in string dbname);
-	ForwardRange!string listDBs();
-	void deleteDB(string name);
-	void deleteIDs(string dbname, ForwardRange!string range);
-	void optimize();
-	void close();
-	InputRange!string containsIDs(in string dbname, ForwardRange!string range);
-}
 struct IDStore {
 	import std.range : SortedRange, isInputRange;
 	public bool isDisabled = false;
-	private Database database;
+	private Connection database;
 	alias opIndex = db;
 	final public auto ref db(string dbname) {
 		static struct DB {
@@ -47,7 +36,7 @@ struct IDStore {
 			final bool opBinaryRight(string op :"in", T)(T range) if (isInputRange!T) {
 				return db.inDB(name, range);
 			}
-			alias canFind = opIn_r;
+			alias canFind = opBinaryRight!"in";
 			final auto contains(string[] ids...) {
 				return db.contains(name, ids);
 			}
@@ -66,134 +55,158 @@ struct IDStore {
 		import std.array : empty;
 		return !contains(dbname, range).empty;
 	}
-	void createDB(string name) {
-		if (isDisabled)
+	void createDB(const string dbname) {
+		if (isDisabled) {
 			return;
-		database.createDB(name);
+		}
+	    auto statement = database.createStatement();
+	    scope(exit) statement.close();
+		statement.executeUpdate("CREATE TABLE IF NOT EXISTS " ~ dbname ~ " (IDS VARCHAR(127) PRIMARY KEY)");
 	}
 	void deleteID(T)(string name, T ids) if (isInputRange!T) {
-		if (isDisabled)
+		import std.string : format;
+		import std.array : array;
+		if (isDisabled) {
 			return;
-		database.deleteIDs(name, inputRangeObject(ids));
+		}
+		createDB(name);
+		auto prepared = database.prepareStatement(format!"DELETE FROM `%s` WHERE IDS=?"(name));
+		scope(exit) prepared.close();
+		foreach (id; ids) {
+			prepared.setString(1, id);
+			prepared.executeUpdate();
+		}
 	}
-	void deleteDB(string db) {
-		database.deleteDB(db);
+	void deleteDB(const string name) {
+	    auto statement = database.createStatement();
+	    scope(exit) statement.close();
+		statement.executeUpdate("DROP TABLE IF EXISTS "~name);
 	}
-	void insertID(T)(string name, T ids) if (isInputRange!T) {
-		if (isDisabled)
+	void insertID(T)(const string name, T ids) if (isInputRange!T) {
+		import std.format : format;
+		if (isDisabled) {
 			return;
-		database.insertIDs(name, inputRangeObject(ids));
+		}
+		createDB(name);
+		auto prepared = database.prepareStatement(format!"INSERT INTO `%s` (IDs) VALUES (?)"(name));
+		scope(exit) prepared.close();
+		foreach (id; ids) {
+			prepared.setString(1, id);
+			prepared.executeUpdate();
+		}
 	}
-	void optimize() {
-		if (isDisabled)
-			return;
-		database.optimize();
-	}
-	auto listDbs() {
+	string[] listIDs(const string dbname) {
+		import std.format : format;
 		import std.traits : ReturnType;
-		if (isDisabled)
-			return ReturnType!(Database.listDBs).init;
-		return database.listDBs();
+		if (isDisabled) {
+			return typeof(return).init;
+		}
+		string[] output;
+		createDB(dbname);
+	    auto statement = database.createStatement();
+	    scope(exit) statement.close();
+		auto prepared = statement.executeQuery(format!"SELECT IDS FROM `%s`"(dbname));
+		foreach (row; prepared) {
+			output ~= row.getString(1);
+		}
+		return output;
 	}
-	bool opIn_r(string db) {
-		import std.algorithm : canFind;
-		return listDbs.canFind(db);
-	}
-	auto listIDs(string db) {
-		import std.traits : ReturnType;
-		if (isDisabled)
-			return ReturnType!(Database.listIDs).init;
-		return database.listIDs(db);
-	}
-	auto contains(T)(string name, T ids) if (isInputRange!T) {
-		import std.traits : ReturnType;
-		if (isDisabled)
-			return ReturnType!(Database.containsIDs).init;
-		return database.containsIDs(name, inputRangeObject(ids));
+	string[] contains(T)(const string name, T range) if (isInputRange!T) {
+		import std.array : array;
+		import std.exception : enforce;
+		import std.string : format;
+		if (isDisabled) {
+			return typeof(return).init;
+		}
+		string[] output;
+		createDB(name);
+		auto prepared = database.prepareStatement(format!"SELECT IDS FROM `%s` WHERE IDS=?"(name));
+		scope(exit) prepared.close();
+		foreach (id; range) {
+			prepared.setString(1, id);
+			auto res = prepared.executeQuery();
+			while (res.next()) {
+				output ~= res.getString(1);
+				break;
+			}
+			res.next();
+			enforce(res.isLast, "Multiple IDs found?");
+		}
+		return output;
 	}
 	void close() {
 		database.close();
 	}
-	bool opCast(T: bool)() const {
-		return database !is null;
+	this(const string url) {
+		database = createConnection(url);
 	}
 }
-IDStore openStore(T, U...)(U args) {
-	auto output = IDStore();
-	output.database = new T(args);
-	return output;
+IDStore openStore(T...)(T args) {
+	return IDStore(args);
 }
-version(unittest) {
-	void test(DB, T...)(string testid, T args) {
-		import std.file : remove, exists;
-		import std.datetime.stopwatch : benchmark;
-		import std.datetime : Duration;
-		import std.range : iota, zip, enumerate;
-		import std.array : array, empty;
-		import std.algorithm : map, reduce, sort, setDifference, equal;
-		import std.stdio : writeln, writefln;
-		import std.conv : text, to;
-		import std.exception : assertNotThrown, assertThrown;
-		import std.experimental.logger;
-		enum count = 1000;
-		enum word = "testword";
-		enum words1 = iota(0,count).map!text;
-		enum words2 = iota(0,count).map!((a) => "word"~text(a));
-		enum words3 = iota(0,count).map!((a) => "Nonexistant"~text(a));
-		enum words4 = iota(0,count).map!((a) => "extra"~text(a));
-		writeln("Beginning database test ", testid);
-		auto db = openStore!DB(args);
-		void test1() {
-			scope(failure)
-				db.deleteDB("test");
-			assert(word !in db["test"], "Found item in empty database");
-			assert(words1 !in db["test"], "Found one of several items in empty database");
-			info(DB.stringof ~ "test 1 complete");
-		}
-		void test2() {
-			scope(failure)
-				db.deleteDB("test");
-			db["test"] ~= word;
+unittest {
+	import std.file : remove, exists;
+	import std.datetime.stopwatch : benchmark;
+	import std.datetime : Duration;
+	import std.range : iota, zip, enumerate;
+	import std.array : array, empty;
+	import std.algorithm : map, reduce, sort, setDifference, equal;
+	import std.stdio : writeln, writefln;
+	import std.conv : text, to;
+	import std.exception : assertNotThrown, assertThrown;
+	import std.experimental.logger;
+	enum count = 1000;
+	enum word = "testword";
+	enum words1 = iota(0,count).map!text;
+	enum words2 = iota(0,count).map!((a) => "word"~text(a));
+	enum words3 = iota(0,count).map!((a) => "Nonexistant"~text(a));
+	enum words4 = iota(0,count).map!((a) => "extra"~text(a));
+	info("Beginning database test");
+	auto db = openStore("sqlite::memory:");
+	void test1() {
+		scope(failure) db.deleteDB("test");
+		assert(word !in db["test"], "Found item in empty database");
+		assert(words1 !in db["test"], "Found one of several items in empty database");
+		info("test 1 complete");
+	}
+	void test2() {
+		scope(failure) db.deleteDB("test");
+		db["test"] ~= word;
 
-			assert(word in db["test"], "Single word not found in database");
-			assert(equal(db.listDbs(), ["test"]), "Database list missing just-added database");
-			info(DB.stringof ~ "test 2 complete");
-		}
-		void test3() {
-			scope(failure)
-				db.deleteDB("test");
-			db["test"] ~= words1;
-			db["test"] ~= words2;
-			db["test"] ~= words4;
-			assertNotThrown(db.optimize(), "Optimization failure");
-			assert(equal(db["test"].contains(words1).array.sort(), words1.array.sort()), "Missing ID from set1");
-			assert(equal(db["test"].contains(words2).array.sort(), words2.array.sort()), "Missing ID from set2");
-			assert(db["test"].contains(words3).empty, "Found ID from set3");
-			assert(equal(db["test"].contains(words4).array.sort(), words4.array.sort()), "Missing ID from set4");
-			info(DB.stringof ~ "test 3 complete");
-		}
-		void test4() {
-			scope(failure)
-				db.deleteDB("test");
-			assertNotThrown(db["test"].remove(words1), "Deletion 1 failed");
-			assertNotThrown(db["test"].remove(words2), "Deletion 2 failed");
-			assertNotThrown(db["test"].remove(words3), "Deletion of nonexistant ids failed");
-			info(DB.stringof ~ "test 4 complete");
-		}
-		void test5() {
-			scope(failure)
-				db.deleteDB("test");
-			assert(words1 !in db["test"], "Deletion failed in words1");
-			assert(words2 !in db["test"], "Deletion failed in words2");
-			info(DB.stringof ~ "test 5 complete");
-		}
-		void test6() {
-			db.deleteDB("test");
-			info(DB.stringof ~ "test 6 complete");
-		}
-		auto times = benchmark!(test1, test2, test3, test4, test5, test6)(1)[].map!(to!Duration);
-		foreach (i, time; times.enumerate(1))
-			writefln("%s: Test %d completed in %s", testid, i, time);
-		writefln("%s: Full test completed in %s", testid, times.reduce!((a,b) => a+b));
+		assert(word in db["test"], "Single word not found in database");
+		info("test 2 complete");
 	}
+	void test3() {
+		scope(failure) db.deleteDB("test");
+		db["test"] ~= words1;
+		db["test"] ~= words2;
+		db["test"] ~= words4;
+		assert(equal(db["test"].contains(words1).array.sort(), words1.array.sort()), "Missing ID from set1");
+		assert(equal(db["test"].contains(words2).array.sort(), words2.array.sort()), "Missing ID from set2");
+		assert(db["test"].contains(words3).empty, "Found ID from set3");
+		assert(equal(db["test"].contains(words4).array.sort(), words4.array.sort()), "Missing ID from set4");
+		info("test 3 complete");
+	}
+	void test4() {
+		scope(failure) db.deleteDB("test");
+		assertNotThrown(db["test"].remove(words1), "Deletion 1 failed");
+		assertNotThrown(db["test"].remove(words2), "Deletion 2 failed");
+		assertNotThrown(db["test"].remove(words3), "Deletion of nonexistant ids failed");
+		info("test 4 complete");
+	}
+	void test5() {
+		scope(failure) db.deleteDB("test");
+		assert(words1 !in db["test"], "Deletion failed in words1");
+		assert(words2 !in db["test"], "Deletion failed in words2");
+		info("test 5 complete");
+	}
+	void test6() {
+		db.deleteDB("test");
+		info("test 6 complete");
+	}
+	auto times = benchmark!(test1, test2, test3, test4, test5, test6)(1)[].map!(to!Duration);
+	foreach (i, time; times.enumerate(1)) {
+		infof("Test %d completed in %s", i, time);
+	}
+	infof("Full test completed in %s", times.reduce!((a,b) => a+b));
 }

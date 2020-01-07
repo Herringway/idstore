@@ -5,48 +5,7 @@
 	"authors": ["Cameron \"Herringway\" Ross"],
 	"targetType": "library",
 	"license": "BSL",
-	"libs-posix": ["pq"],
 	"dependencies": {
-		"d2sqlite3": "~>0.16.0"
-	},
-	"dependencies-windows": {
-		"postgres": { "version": "*", "optional": true, "default": true }
-	},
-	"subConfigurations": {
-		"d2sqlite3": "all-included"
-	},
-	"configurations": [
-		{
-			"name": "with-all",
-			"targetType": "library",
-			"dependencies": {
-				"dpq2": "~>1.0.0-rc.6",
-				"mysql-native": "~>2.2.2"
-			}
-		},
-		{
-			"name": "with-pgsql",
-			"targetType": "library",
-			"dependencies": {
-				"dpq2": "~>1.0.0-rc.6"
-			}
-		},
-		{
-			"name": "with-mysql",
-			"targetType": "library",
-			"dependencies": {
-				"mysql-native": "~>2.2.2"
-			}
-		},
-		{
-			"name": "with-noremote",
-			"targetType": "library"
-		}
-	],
-	"sourceFiles-windows-x86_64": [
-		"lib/win-amd64/sqlite3.lib"
-	],
-	"sourceFiles-windows-x86": [
-		"lib/win-i386/sqlite3.lib"
-	]
+		"ddbc": "0.5.1"
+	}
 }
