@@ -141,8 +141,8 @@ struct IDStore {
 		database = createConnection(url);
 	}
 }
-IDStore openStore(T...)(T args) {
-	return IDStore(args);
+IDStore openStore(string path) {
+	return IDStore(path);
 }
 unittest {
 	import std.file : remove, exists;
