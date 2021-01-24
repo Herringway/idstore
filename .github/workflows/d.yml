@@ -16,7 +16,7 @@ jobs:
     - uses: dlang-community/setup-dlang@4c99aa991ce7d19dd3064de0a4f2f6b2f152e2d7
     - name: 'Install dependencies'
       run: |
-          sudo apt-get install libcurl-dev
+          sudo apt-get install libcurl4-openssl-dev
     - name: 'Build & Test (with coverage)'
       run: |
         dub build
